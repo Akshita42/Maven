@@ -1,122 +1,169 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useState, useEffect } from 'react';
+import './App.css';
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [loading, setLoading] = useState(true);
+  const [systemData, setSystemData] = useState(null);
+  const [offline, setOffline] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState('');
+
+  const fetchSystemStatus = async () => {
+    setLoading(true);
+    setOffline(false);
+    try {
+      // Query the API Gateway health endpoint
+      const response = await fetch('http://localhost:4000/api/health');
+      const payload = await response.json();
+
+      if (payload && payload.status === 'success') {
+        setSystemData(payload.data);
+      } else {
+        // Fallback for bad JSON structure
+        setOffline(true);
+      }
+    } catch (err) {
+      // Connection failure to API Gateway (Node.js down)
+      setOffline(true);
+    } finally {
+      setLoading(false);
+      setLastUpdated(new Date().toLocaleTimeString());
+    }
+  };
+
+  useEffect(() => {
+    fetchSystemStatus();
+  }, []);
+
+  // Determine overall status based on systemData or offline state
+  const getOverallStatus = () => {
+    if (offline) return 'offline';
+    if (!systemData) return 'loading';
+    return systemData.status; // 'healthy' or 'degraded'
+  };
+
+  const overallStatus = getOverallStatus();
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <div className="status-container">
+      <h1>
+        Maven System Status
+        <span className={`system-status-indicator status-${overallStatus}`}>
+          {overallStatus}
+        </span>
+      </h1>
+
+      {loading ? (
+        <div className="loading-text">Loading system diagnostics...</div>
+      ) : (
+        <div className="service-list">
+          {/* 1. Frontend Status (Self-reported) */}
+          <div className="service-card">
+            <div className="service-header">
+              <span className="service-name">Frontend</span>
+              <span className="status-badge status-healthy">healthy</span>
+            </div>
+            <div className="metadata-grid">
+              <div className="metadata-item">
+                <span className="metadata-label">Language</span>
+                <span className="metadata-value">React / JS</span>
+              </div>
+              <div className="metadata-item">
+                <span className="metadata-label">Runtime</span>
+                <span className="metadata-value">Vite / Browser</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Backend Status */}
+          <div className="service-card">
+            <div className="service-header">
+              <span className="service-name">Backend (API Gateway)</span>
+              <span className={`status-badge status-${offline ? 'offline' : systemData?.services?.backend?.status}`}>
+                {offline ? 'offline' : systemData?.services?.backend?.status}
+              </span>
+            </div>
+            {!offline && systemData?.services?.backend ? (
+              <div className="metadata-grid">
+                <div className="metadata-item">
+                  <span className="metadata-label">Version</span>
+                  <span className="metadata-value">{systemData.services.backend.version}</span>
+                </div>
+                <div className="metadata-item">
+                  <span className="metadata-label">Uptime</span>
+                  <span className="metadata-value">{systemData.services.backend.uptime}s</span>
+                </div>
+                <div className="metadata-item">
+                  <span className="metadata-label">Timestamp</span>
+                  <span className="metadata-value">{new Date(systemData.services.backend.timestamp).toLocaleTimeString()}</span>
+                </div>
+                <div className="metadata-item">
+                  <span className="metadata-label">Runtime</span>
+                  <span className="metadata-value">Node.js</span>
+                </div>
+              </div>
+            ) : (
+              <div className="metadata-grid">
+                <div className="error-reason">
+                  Failed to connect to Node.js backend. Port 4000 may be inactive.
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 3. Python AI Service Status */}
+          <div className="service-card">
+            <div className="service-header">
+              <span className="service-name">AI Service (Python)</span>
+              <span className={`status-badge status-${offline ? 'offline' : systemData?.services?.aiService?.status}`}>
+                {offline ? 'offline' : systemData?.services?.aiService?.status}
+              </span>
+            </div>
+            {!offline && systemData?.services?.aiService ? (
+              systemData.services.aiService.status === 'healthy' ? (
+                <div className="metadata-grid">
+                  <div className="metadata-item">
+                    <span className="metadata-label">Version</span>
+                    <span className="metadata-value">{systemData.services.aiService.version}</span>
+                  </div>
+                  <div className="metadata-item">
+                    <span className="metadata-label">Uptime</span>
+                    <span className="metadata-value">{systemData.services.aiService.uptime}s</span>
+                  </div>
+                  <div className="metadata-item">
+                    <span className="metadata-label">Timestamp</span>
+                    <span className="metadata-value">{new Date(systemData.services.aiService.timestamp).toLocaleTimeString()}</span>
+                  </div>
+                  <div className="metadata-item">
+                    <span className="metadata-label">Runtime</span>
+                    <span className="metadata-value">FastAPI / Python</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="metadata-grid">
+                  <div className="error-reason">
+                    AI Service Degradation: {systemData.services.aiService.reason}
+                  </div>
+                </div>
+              )
+            ) : (
+              <div className="metadata-grid">
+                <div className="error-reason">
+                  Unreachable. The backend is offline, preventing downstream status retrieval.
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
+      )}
+
+      <div className="refresh-container">
+        <span>Last Updated: {lastUpdated || 'Never'}</span>
+        <button className="refresh-button" onClick={fetchSystemStatus} disabled={loading}>
+          {loading ? 'Refreshing...' : 'Refresh Status'}
         </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+      </div>
+    </div>
+  );
 }
 
-export default App
+export default App;
