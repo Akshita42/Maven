@@ -29,6 +29,8 @@
 
 import { Router } from 'express';
 import healthRoutes from './health.routes.js';
+import companyRoutes from './company.routes.js';
+import evidenceRoutes from './evidence.routes.js';
 
 const router = Router();
 
@@ -41,9 +43,10 @@ const router = Router();
  *          = GET /api/health
  */
 router.use('/health', healthRoutes);
+router.use('/v1/company', companyRoutes);
+router.use('/v1/evidence', evidenceRoutes);
 
 // Future route groups will be added below as phases are implemented:
 // router.use('/research', researchRoutes);
-// router.use('/sessions', sessionRoutes);
 
 export default router;

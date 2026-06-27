@@ -9,9 +9,19 @@
 
 from fastapi import APIRouter
 from src.api.routes.health import router as health_router
+from src.api.routes.company import router as company_router
+from src.api.routes.evidence import router as evidence_router
 
 api_router = APIRouter(prefix="/api/v1")
 
 # Mount the health routes.
 # Path resolves to: GET /api/v1/health
 api_router.include_router(health_router, prefix="/health", tags=["health"])
+
+# Mount the company routes.
+# Path resolves to: POST /api/v1/company/resolve
+api_router.include_router(company_router, prefix="/company", tags=["company"])
+
+# Mount the evidence routes.
+# Path resolves to: POST /api/v1/evidence/collect
+api_router.include_router(evidence_router, prefix="/evidence", tags=["evidence"])

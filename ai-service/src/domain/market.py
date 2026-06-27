@@ -1,19 +1,21 @@
 # ─────────────────────────────────────────────────────────────────
-# src/constants/error_codes.py
+# src/domain/market.py
 # ─────────────────────────────────────────────────────────────────
 #
-# Stable error identifiers shared across the ecosystem.
-# The React client branches on these codes rather than raw messages.
+# Core Domain Model representing Market Price metrics.
+# Independent of Yahoo Finance or any external vendor.
 # ─────────────────────────────────────────────────────────────────
 
-# Generic
-INTERNAL_SERVER_ERROR = "INTERNAL_SERVER_ERROR"
-ROUTE_NOT_FOUND = "ROUTE_NOT_FOUND"
-VALIDATION_ERROR = "VALIDATION_ERROR"
-CONFIG_INVALID = "CONFIG_INVALID"
+from typing import Optional
+from pydantic import BaseModel
 
-# AI/Research Domain (Phase 2+)
-AI_INFERENCE_ERROR = "AI_INFERENCE_ERROR"
-EVIDENCE_INSUFFICIENT = "EVIDENCE_INSUFFICIENT"
-RESEARCH_FAILED = "RESEARCH_FAILED"
-AI_SERVICE_TIMEOUT = "AI_SERVICE_TIMEOUT"
+class MarketData(BaseModel):
+    """Authoritative business model for market pricing and indicator metrics."""
+    currentPrice: Optional[float] = None
+    previousClose: Optional[float] = None
+    fiftyTwoWeekHigh: Optional[float] = None
+    fiftyTwoWeekLow: Optional[float] = None
+    currency: str = "USD"
+    
+    # Retrieval status metadata
+    retrieved_successfully: bool = False

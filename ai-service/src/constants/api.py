@@ -17,3 +17,6 @@ STATUS_ERROR = "error"
 HEALTH_HEALTHY = "healthy"
 HEALTH_DEGRADED = "degraded"
 HEALTH_UNHEALTHY = "unhealthy"
+
+# External APIs
+YAHOO_SEARCH_URL = "https://query2.finance.yahoo.com/v1/finance/search"
