@@ -32,6 +32,7 @@ import healthRoutes from './health.routes.js';
 import companyRoutes from './company.routes.js';
 import evidenceRoutes from './evidence.routes.js';
 import intelligenceRoutes from './intelligence.routes.js';
+import thesisRoutes from './thesis.routes.js';
 
 const router = Router();
 
@@ -47,6 +48,7 @@ router.use('/health', healthRoutes);
 router.use('/v1/company', companyRoutes);
 router.use('/v1/evidence', evidenceRoutes);
 router.use('/v1/intelligence', intelligenceRoutes);
+router.use('/v1/thesis', thesisRoutes);
 
 // Future route groups will be added below as phases are implemented:
 // router.use('/research', researchRoutes);
