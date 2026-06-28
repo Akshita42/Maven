@@ -13,6 +13,7 @@ from src.api.routes.company import router as company_router
 from src.api.routes.evidence import router as evidence_router
 from src.api.routes.intelligence import router as intelligence_router
 from src.api.routes.thesis import router as thesis_router
+from src.api.routes.committee import router as committee_router
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -35,3 +36,7 @@ api_router.include_router(intelligence_router, prefix="/intelligence", tags=["in
 # Mount the thesis routes.
 # Path resolves to: POST /api/v1/thesis/build
 api_router.include_router(thesis_router, prefix="/thesis", tags=["thesis"])
+
+# Mount the committee routes.
+# Path resolves to: POST /api/v1/committee/review
+api_router.include_router(committee_router, prefix="/committee", tags=["committee"])
