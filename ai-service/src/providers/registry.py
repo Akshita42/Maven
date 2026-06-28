@@ -9,10 +9,16 @@
 # consumer service implementations.
 # ─────────────────────────────────────────────────────────────────
 
-from src.providers.base import MarketDataProvider, CompanyProfileProvider, NewsProvider
+from src.providers.base import (
+    MarketDataProvider, 
+    CompanyProfileProvider, 
+    NewsProvider,
+    FinancialsProvider
+)
 from src.providers.yahoo_chart import YahooChartProvider
 from src.providers.yahoo_profile import YahooProfileProvider
 from src.providers.yahoo_search import YahooSearchProvider
+from src.providers.yahoo_financials import YahooFinancialsProvider
 
 class ProviderRegistry:
     """
@@ -22,6 +28,7 @@ class ProviderRegistry:
     _market_provider: MarketDataProvider = None
     _profile_provider: CompanyProfileProvider = None
     _news_provider: NewsProvider = None
+    _financials_provider: FinancialsProvider = None
 
     @classmethod
     def register_market_provider(cls, provider: MarketDataProvider):
@@ -34,6 +41,10 @@ class ProviderRegistry:
     @classmethod
     def register_news_provider(cls, provider: NewsProvider):
         cls._news_provider = provider
+
+    @classmethod
+    def register_financials_provider(cls, provider: FinancialsProvider):
+        cls._financials_provider = provider
 
     @classmethod
     def get_market_provider(cls) -> MarketDataProvider:
@@ -53,3 +64,9 @@ class ProviderRegistry:
         if cls._news_provider is None:
             cls._news_provider = YahooSearchProvider()
         return cls._news_provider
+
+    @classmethod
+    def get_financials_provider(cls) -> FinancialsProvider:
+        if cls._financials_provider is None:
+            cls._financials_provider = YahooFinancialsProvider()
+        return cls._financials_provider

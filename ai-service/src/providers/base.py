@@ -12,6 +12,7 @@ from typing import List
 from src.domain.company import CompanyProfile
 from src.domain.market import MarketData
 from src.domain.news import NewsItem
+from src.domain.financials import CompanyFinancials
 
 # ── Provider Interfaces (Abstract Classes) ──
 
@@ -31,4 +32,10 @@ class NewsProvider(ABC):
     """Abstract interface for retrieving corporate news listings."""
     @abstractmethod
     def fetch_news(self, ticker: str) -> List[NewsItem]:
+        pass
+
+class FinancialsProvider(ABC):
+    """Abstract interface for retrieving audited historical statements."""
+    @abstractmethod
+    def fetch_financial_statements(self, ticker: str) -> CompanyFinancials:
         pass

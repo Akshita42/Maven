@@ -2,15 +2,18 @@
 # src/domain/evidence.py
 # ─────────────────────────────────────────────────────────────────
 #
-# Core Domain Model representing the compiled Evidence Package.
-# Enforces strict schemas and provenance trails.
+# Core Domain components for the Evidence Layer.
+# Enforces strict schemas and provenance trails with frozen models.
 # ─────────────────────────────────────────────────────────────────
 
-from typing import Any, List
-from pydantic import BaseModel
+from typing import Any, List, Optional
+from pydantic import BaseModel, ConfigDict
+from src.domain.financials import CompanyFinancials
 
 class EvidenceField(BaseModel):
     """Envelope wrapping a resolved data value with its provenance trail."""
+    model_config = ConfigDict(frozen=True)
+    
     value: Any = None
     source: str
     retrievedAt: str
@@ -18,6 +21,8 @@ class EvidenceField(BaseModel):
 
 class CompanyProfileEvidence(BaseModel):
     """Compiled provenance values for company profiles."""
+    model_config = ConfigDict(frozen=True)
+    
     companyName: EvidenceField
     ticker: EvidenceField
     exchange: EvidenceField
@@ -30,6 +35,8 @@ class CompanyProfileEvidence(BaseModel):
 
 class MarketDataEvidence(BaseModel):
     """Compiled provenance values for market indicators."""
+    model_config = ConfigDict(frozen=True)
+    
     currentPrice: EvidenceField
     previousClose: EvidenceField
     marketCap: EvidenceField
@@ -38,13 +45,18 @@ class MarketDataEvidence(BaseModel):
 
 class NewsItemEvidence(BaseModel):
     """Compiled provenance values for a news article."""
+    model_config = ConfigDict(frozen=True)
+    
     headline: EvidenceField
     publisher: EvidenceField
     publishedAt: EvidenceField
     url: EvidenceField
 
-class EvidencePackage(BaseModel):
-    """The complete canonical evidence package model."""
-    companyProfile: CompanyProfileEvidence
-    marketData: MarketDataEvidence
-    news: List[NewsItemEvidence]
+class FinancialsEvidence(BaseModel):
+    """Envelope wrapping the compiled historical financial statements package."""
+    model_config = ConfigDict(frozen=True)
+    
+    value: Optional[CompanyFinancials] = None
+    source: str
+    retrievedAt: str
+    confidence: float

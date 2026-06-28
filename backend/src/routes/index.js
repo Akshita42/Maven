@@ -31,6 +31,7 @@ import { Router } from 'express';
 import healthRoutes from './health.routes.js';
 import companyRoutes from './company.routes.js';
 import evidenceRoutes from './evidence.routes.js';
+import intelligenceRoutes from './intelligence.routes.js';
 
 const router = Router();
 
@@ -45,6 +46,7 @@ const router = Router();
 router.use('/health', healthRoutes);
 router.use('/v1/company', companyRoutes);
 router.use('/v1/evidence', evidenceRoutes);
+router.use('/v1/intelligence', intelligenceRoutes);
 
 // Future route groups will be added below as phases are implemented:
 // router.use('/research', researchRoutes);
