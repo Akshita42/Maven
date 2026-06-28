@@ -14,6 +14,7 @@ from src.api.routes.evidence import router as evidence_router
 from src.api.routes.intelligence import router as intelligence_router
 from src.api.routes.thesis import router as thesis_router
 from src.api.routes.committee import router as committee_router
+from src.api.routes.critique import router as critique_router
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -40,3 +41,7 @@ api_router.include_router(thesis_router, prefix="/thesis", tags=["thesis"])
 # Mount the committee routes.
 # Path resolves to: POST /api/v1/committee/review
 api_router.include_router(committee_router, prefix="/committee", tags=["committee"])
+
+# Mount the critique routes.
+# Path resolves to: POST /api/v1/critique/evaluate
+api_router.include_router(critique_router, prefix="/critique", tags=["critique"])

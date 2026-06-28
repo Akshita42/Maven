@@ -34,6 +34,7 @@ import evidenceRoutes from './evidence.routes.js';
 import intelligenceRoutes from './intelligence.routes.js';
 import thesisRoutes from './thesis.routes.js';
 import committeeRoutes from './committee.routes.js';
+import critiqueRoutes from './critique.routes.js';
 
 const router = Router();
 
@@ -51,6 +52,7 @@ router.use('/v1/evidence', evidenceRoutes);
 router.use('/v1/intelligence', intelligenceRoutes);
 router.use('/v1/thesis', thesisRoutes);
 router.use('/v1/committee', committeeRoutes);
+router.use('/v1/critique', critiqueRoutes);
 
 // Future route groups will be added below as phases are implemented:
 // router.use('/research', researchRoutes);
