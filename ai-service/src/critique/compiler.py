@@ -43,7 +43,12 @@ class CritiqueCompiler:
         thesis: InvestmentThesis,
         review: InvestmentCommitteeReview,
         status: CritiqueStatus,
-        initial_warnings: List[str]
+        initial_warnings: List[str],
+        prompt_version: str = None,
+        prompt_hash: str = None,
+        finish_reason: str = None,
+        tokens_used: int = None,
+        llm_model_name: str = "unknown"
     ) -> InvestmentCritique:
         
         # 1. Collect all valid statement IDs in the thesis to detect hallucinations
@@ -228,9 +233,13 @@ class CritiqueCompiler:
             latencyMs=0.0, # Will be set by orchestrator
             status=status,
             evaluatorsExecuted=["DeterministicCritiqueEngine", "AICritiqueEngine"],
-            llmModelName="mock-model" if status != CritiqueStatus.DEGRADED else "none",
+            llmModelName=llm_model_name if status != CritiqueStatus.DEGRADED else "none",
             llmTemperature=0.1,
-            compilerReport=report
+            compilerReport=report,
+            promptVersion=prompt_version,
+            promptHash=prompt_hash,
+            finishReason=finish_reason,
+            tokensUsed=tokens_used
         )
 
         return InvestmentCritique(

@@ -139,6 +139,10 @@ class CritiqueMetadata(BaseModel):
     llmModelName: str
     llmTemperature: float
     compilerReport: CritiqueCompilerReport
+    promptVersion: Optional[str] = None
+    promptHash: Optional[str] = None
+    finishReason: Optional[str] = None
+    tokensUsed: Optional[int] = None
 
 class InvestmentCritique(BaseModel):
     model_config = ConfigDict(frozen=True)

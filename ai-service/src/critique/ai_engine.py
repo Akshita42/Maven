@@ -6,24 +6,24 @@
 # ─────────────────────────────────────────────────────────────────
 
 import json
+from typing import Tuple
 from src.critique.interfaces import BaseLLMService
 from src.critique.models import AICritiqueObservation
 from src.thesis.models import InvestmentThesis
 from src.committee.models import InvestmentCommitteeReview
+from src.infrastructure.llm.prompt_loader import PromptLoader
+from src.agent.exceptions import TerminalAgentError
 
 def strip_json_fences(text: str) -> str:
     """
     Cleans leading/trailing backticks and json block indicators from LLM string.
     """
+    import re
     text = text.strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        text = "\n".join(lines).strip()
-    return text
+    match = re.search(r"```(?:json)?\s*(.*?)\s*```", text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return text.strip()
 
 class AICritiqueEngine:
     """
@@ -35,7 +35,11 @@ class AICritiqueEngine:
         thesis: InvestmentThesis,
         review: InvestmentCommitteeReview,
         llm_service: BaseLLMService
-    ) -> AICritiqueObservation:
+    ) -> Tuple[AICritiqueObservation, str, str]:
+        import time
+        from pydantic import ValidationError
+        print("ENTER AICritiqueEngine.evaluate")
+        start_t = time.time()
         
         # Build prompt listing the existing assumptions and statements to avoid hallucinations
         assumptions_list = []
@@ -48,22 +52,8 @@ class AICritiqueEngine:
             for stmt in sec.statements:
                 statements_list.append(f"- ID: {stmt.statementId}, Section: {sec_name}, Finding: {stmt.finding}")
                 
-        system_prompt = (
-            "You are a strict financial critique model. You evaluate existing assumptions, bias types, "
-            "and reasoning links from the provided list. Do NOT invent new statements, enums or numbers.\n"
-            "Output JSON matching this schema:\n"
-            "{\n"
-            "  \"observedAssumptions\": [\n"
-            "    {\"reviewerId\": \"BUSINESS\", \"statementId\": \"BQ-ST-001\", \"description\": \"Moat holds\", \"vulnerabilityScore\": 0.45, \"weaknessRationale\": \"regulatory shifts\"}\n"
-            "  ],\n"
-            "  \"observedBiases\": [\n"
-            "    {\"category\": \"CONFIRMATION\", \"description\": \"overemphasis on positive news\", \"involvedReviewers\": [\"BUSINESS\"], \"involvedStatements\": [\"BQ-ST-001\"]}\n"
-            "  ],\n"
-            "  \"observedReasoningFlaws\": [\n"
-            "    {\"reviewerId\": \"FINANCIAL\", \"involvedStatements\": [\"FH-ST-001\"], \"logicalLeak\": \"ignores cash flow trajectory\"}\n"
-            "  ]\n"
-            "}"
-        )
+        # Load system prompt dynamically
+        system_prompt, prompt_version, prompt_hash = PromptLoader.load_prompt("critique", "1")
         
         user_prompt = (
             f"Here are the assumptions:\n"
@@ -72,50 +62,43 @@ class AICritiqueEngine:
             f"{chr(10).join(statements_list)}"
         )
         
-        # 1. Call mockable LLM service
+        # 1. Call LLM service
         raw_response = llm_service.generate_json_response(system_prompt, user_prompt, timeout=10.0)
         
-        # 2. Clean markdown blocks
+        print("=== RAW GEMINI RESPONSE (INITIAL) ===")
+        print(raw_response)
+        print("=====================================")
+        
         cleaned_json = strip_json_fences(raw_response)
         
-        # 3. Parse into intermediate observation model
-        data = json.loads(cleaned_json)
-        return AICritiqueObservation(**data)
-
-class LLMService(BaseLLMService):
-    """
-    Default production LLM Service implementation for Self-Critique.
-    Returns deterministic, structured critique observations to ensure
-    consistent pipeline execution and high latency throughput.
-    """
-    def generate_json_response(self, system_prompt: str, user_prompt: str, timeout: float = 10.0) -> str:
-        # Returns a standard structured observation matching TSM/AAPL/MSFT/TSLA structures.
-        # This keeps the critique layer 100% stable, performant, and reproducible.
-        return (
-            "{\n"
-            "  \"observedAssumptions\": [\n"
-            "    {\n"
-            "      \"reviewerId\": \"BUSINESS\",\n"
-            "      \"statementId\": \"BQ-ST-001\",\n"
-            "      \"description\": \"Moat assumes sustained industry structure\",\n"
-            "      \"vulnerabilityScore\": 0.45,\n"
-            "      \"weaknessRationale\": \"Regulatory changes could weaken moat stability\"\n"
-            "    }\n"
-            "  ],\n"
-            "  \"observedBiases\": [\n"
-            "    {\n"
-            "      \"category\": \"CONFIRMATION\",\n"
-            "      \"description\": \"Potential confirmation bias on positive financial health ratios\",\n"
-            "      \"involvedReviewers\": [\"BUSINESS\", \"FINANCIAL\"],\n"
-            "      \"involvedStatements\": [\"BQ-ST-001\", \"FH-ST-001\"]\n"
-            "    }\n"
-            "  ],\n"
-            "  \"observedReasoningFlaws\": [\n"
-            "    {\n"
-            "      \"reviewerId\": \"FINANCIAL\",\n"
-            "      \"involvedStatements\": [\"FH-ST-001\"],\n"
-            "      \"logicalLeak\": \"ignores cash flow trends\"\n"
-            "    }\n"
-            "  ]\n"
-            "}"
-        )
+        try:
+            print("AICritiqueEngine: attempting JSON parse")
+            data = json.loads(cleaned_json)
+            obs = AICritiqueObservation(**data)
+            print("JSON parsing succeed: YES")
+        except (json.JSONDecodeError, ValidationError) as e:
+            print(f"JSON parsing or validation failed: {e}")
+            print("Implementing retry...")
+            # RETRY ONCE
+            retry_prompt = user_prompt + "\n\nThe previous response did not satisfy the required JSON schema. Return ONLY valid JSON containing every required field."
+            raw_response = llm_service.generate_json_response(system_prompt, retry_prompt, timeout=10.0)
+            
+            print("=== RAW GEMINI RESPONSE (RETRY) ===")
+            print(raw_response)
+            print("===================================")
+            
+            cleaned_json = strip_json_fences(raw_response)
+            try:
+                data = json.loads(cleaned_json)
+                obs = AICritiqueObservation(**data)
+            except Exception as retry_e:
+                raise RuntimeError(f"LLM validation failed after retry: {str(retry_e)}") from retry_e
+            
+        elapsed = time.time() - start_t
+        print("EXIT AICritiqueEngine.evaluate")
+        print(f"Elapsed time: {elapsed:.3f}s")
+        print(f"Returned object type: {type(obs).__name__}")
+        print("=== VALIDATED JSON (MATCHES Pydantic exactly) ===")
+        print(obs.model_dump_json(indent=2))
+        print("=================================================")
+        return obs, prompt_version, prompt_hash

@@ -23,14 +23,16 @@ SCORE_BASE_EQUITY = 50.0
 SCORE_ETF_PENALTY = -30.0
 SCORE_EXACT_TICKER = 100.0
 SCORE_EXACT_NAME = 45.0
+SCORE_ACRONYM_MATCH = 40.0
 SCORE_PARTIAL_NAME = 15.0
+SCORE_YAHOO_TOP_RESULT = 30.0
 SCORE_US_PRIMARY_EXCHANGE = 35.0
 SCORE_MAJOR_EXCHANGE = 10.0
 
 # ── Threshold Constants ──
 MIN_RESOLUTION_SCORE = 40.0
-AMBIGUITY_GAP_THRESHOLD = 15.0
-MAX_EXPECTED_SCORE = 180.0
+AMBIGUITY_GAP_THRESHOLD = 35.0
+MAX_EXPECTED_SCORE = 220.0
 YAHOO_REQUEST_TIMEOUT = 8.0
 MAX_CANDIDATES_TO_EVALUATE = 20
 
@@ -163,7 +165,7 @@ def filter_candidates(quotes: List[Dict[str, Any]]) -> List[Candidate]:
             )
     return filtered
 
-def score_candidate(candidate: Candidate, normalized_query: str, max_yahoo_score: float) -> Candidate:
+def score_candidate(candidate: Candidate, normalized_query: str, max_yahoo_score: float, rank_index: int) -> Candidate:
     """
     Step 3 (Pure helper): Scores a single candidate deterministically.
     Does not mutate the input; returns a new Candidate instance.
@@ -197,10 +199,18 @@ def score_candidate(candidate: Candidate, normalized_query: str, max_yahoo_score
 
     if candidate.longname:
         clean_long = clean_corporate_name(candidate.longname)
+        
+        # Check acronym
+        words = clean_long.split()
+        acronym = "".join([w[0] for w in words if len(w) > 0])
+        
         if clean_query == clean_long:
             score += SCORE_EXACT_NAME
             if "Exact company name matched" not in reasons:
                 reasons.append("Exact company name matched")
+        elif clean_query == acronym:
+            score += SCORE_ACRONYM_MATCH
+            reasons.append("Company acronym matched")
         elif clean_query in clean_long or clean_long in clean_query:
             score += SCORE_PARTIAL_NAME
             if "Search name match" not in reasons:
@@ -232,7 +242,11 @@ def score_candidate(candidate: Candidate, normalized_query: str, max_yahoo_score
     # E. Yahoo Score Weighting
     yahoo_score = candidate.raw_quote.get("score", 0)
     if max_yahoo_score > 0:
-        score += (yahoo_score / max_yahoo_score) * 10.0
+        score += (yahoo_score / max_yahoo_score) * 50.0
+        
+    if rank_index == 0:
+        score += SCORE_YAHOO_TOP_RESULT
+        reasons.append("Yahoo Search #1 Ranking")
 
     # Add general fallback selection reason
     reasons.append("Highest ranking candidate")
@@ -257,8 +271,8 @@ def score_candidates(filtered_quotes: List[Candidate], normalized_query: str) ->
     scored = []
     max_yahoo_score = max([c.raw_quote.get("score", 0) for c in filtered_quotes]) if filtered_quotes else 0
     
-    for candidate in filtered_quotes:
-        scored.append(score_candidate(candidate, normalized_query, max_yahoo_score))
+    for i, candidate in enumerate(filtered_quotes):
+        scored.append(score_candidate(candidate, normalized_query, max_yahoo_score, i))
         
     # Sort scored candidates in descending order
     scored.sort(key=lambda x: x.score, reverse=True)
@@ -292,7 +306,7 @@ def choose_best_candidate(scored_candidates: List[Candidate], normalized_query: 
             
             return ResolverResult(
                 resolved=False,
-                ambiguityReason="Multiple companies received similar deterministic ranking scores.",
+                ambiguityReason="ambiguous_candidates_found",
                 candidates=candidates_list
             )
 
@@ -373,6 +387,11 @@ def resolve_company_metadata(query: str) -> ResolverResult:
     """
     # Normalize query once at the top of the pipeline
     normalized_query = query.strip().upper()
+    
+    # Strip common intent prefixes for cleaner resolution
+    import re
+    # Remove common words at the beginning
+    normalized_query = re.sub(r'^(ANALYZE|RESEARCH|EVALUATE|REVIEW|LOOK\s*UP)\s+', '', normalized_query).strip()
     
     logger.info(f"Starting company entity resolution query: '{normalized_query}'")
     start_time = time.time()

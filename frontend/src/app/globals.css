@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@theme {
+  --color-maven-bg: #0D0B0B;
+  --color-maven-primary: #D13A4A;
+  --color-maven-secondary: #C87A5B;
+  --color-maven-text: #F3F4F6;
+  --color-maven-gray-400: #9CA3AF;
+  --color-maven-gray-500: #6B7280;
+  
+  --radius-xl: 18px;
+  --radius-2xl: 24px;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-maven-bg);
+  color: var(--color-maven-text);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+/* Remove default scrollbar for chat interface feel */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}

@@ -522,6 +522,13 @@ class EvidenceCollector:
         if not ticker:
             logger.error("EvidenceCollector: Missing ticker symbol in resolver input.")
             raise ValueError("A resolved company ticker symbol is required to collect evidence.")
+
+        # Ensure we capture the full identity from CompanyResolver
+        resolved_short_name = resolver_result.get("shortName")
+        resolved_long_name = resolver_result.get("longName")
+        
+        # Prioritize longName > shortName > ticker
+        best_company_name = resolved_long_name or resolved_short_name or ticker
             
         logger.info(f"EvidenceCollector: Gathering evidence package for symbol '{ticker}'...")
         
@@ -554,28 +561,127 @@ class EvidenceCollector:
                 errors=errors_list or []
             )
 
+        import concurrent.futures
+
         # ── 1. Fetch Profile ──
-        profile_start = time.perf_counter()
-        profile_url = f"https://finance.yahoo.com/quote/{urllib.parse.quote(ticker)}/"
-        profile_data = CompanyProfile(ticker=ticker)
-        profile_status = "failed"
-        profile_health = 0.0
-        profile_errors = []
-        
-        try:
-            profile_data = self.profile_provider.fetch_profile_data(ticker)
-            if profile_data.retrieved_successfully:
-                profile_status = "success"
-                profile_health = 1.0
-            else:
-                profile_status = "empty"
-                profile_health = 0.8
-        except Exception as e:
-            profile_errors.append(str(e))
-            logger.error(f"EvidenceCollector: Profile provider failed: {str(e)}")
+        def fetch_profile():
+            profile_start = time.perf_counter()
+            profile_url = f"https://finance.yahoo.com/quote/{urllib.parse.quote(ticker)}/"
+            profile_data = CompanyProfile(ticker=ticker)
+            profile_status = "failed"
+            profile_health = 0.0
+            profile_errors = []
             
-        profile_latency = (time.perf_counter() - profile_start) * 1000.0
+            try:
+                profile_data = self.profile_provider.fetch_profile_data(ticker)
+                if profile_data.retrieved_successfully:
+                    profile_status = "success"
+                    profile_health = 1.0
+                else:
+                    profile_status = "empty"
+                    profile_health = 0.8
+            except Exception as e:
+                profile_errors.append(str(e))
+                logger.error(f"EvidenceCollector: Profile provider failed: {str(e)}")
+                
+            profile_latency = (time.perf_counter() - profile_start) * 1000.0
+            return profile_data, profile_status, profile_health, profile_errors, profile_latency, profile_url
+
+        # ── 2. Fetch Market Data ──
+        def fetch_market():
+            market_start = time.perf_counter()
+            market_url = f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(ticker)}?range=1d&interval=1d"
+            market_data = MarketData()
+            market_status = "failed"
+            market_health = 0.0
+            market_errors = []
+            
+            try:
+                market_data = self.market_provider.fetch_market_data(ticker)
+                if market_data.retrieved_successfully:
+                    market_status = "success"
+                    market_health = 1.0
+                else:
+                    market_status = "empty"
+                    market_health = 0.8
+            except Exception as e:
+                market_errors.append(str(e))
+                logger.error(f"EvidenceCollector: Market provider failed: {str(e)}")
+                
+            market_latency = (time.perf_counter() - market_start) * 1000.0
+            return market_data, market_status, market_health, market_errors, market_latency, market_url
+
+        # ── 3. Fetch News ──
+        def fetch_news():
+            news_start = time.perf_counter()
+            news_url = f"{YAHOO_SEARCH_URL}?q={urllib.parse.quote(ticker)}&newsCount=5"
+            raw_news: List[NewsItem] = []
+            news_status = "failed"
+            news_health = 0.0
+            news_errors = []
+            
+            try:
+                raw_news = self.news_provider.fetch_news(ticker)
+                if raw_news:
+                    news_status = "success"
+                    news_health = 1.0
+                else:
+                    news_status = "empty"
+                    news_health = 0.8
+            except Exception as e:
+                news_errors.append(str(e))
+                logger.error(f"EvidenceCollector: News provider failed: {str(e)}")
+                
+            news_latency = (time.perf_counter() - news_start) * 1000.0
+            return raw_news, news_status, news_health, news_errors, news_latency, news_url
+
+        # ── 4. Fetch Financial Statements ──
+        def fetch_financials():
+            financials_start = time.perf_counter()
+            financial_statements = None
+            financials_status = "failed"
+            financials_health = 0.0
+            financials_errors = []
+            financials_url = f"https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/{urllib.parse.quote(ticker)}"
+            
+            try:
+                financial_statements = self.financials_provider.fetch_financial_statements(ticker)
+                if financial_statements.retrieved_successfully:
+                    financials_status = "success"
+                    financials_health = 1.0
+                else:
+                    financials_status = "empty"
+                    financials_health = 0.8
+            except Exception as e:
+                financials_errors.append(str(e))
+                logger.error(f"EvidenceCollector: Financials provider failed for '{ticker}': {str(e)}")
+
+            financials_latency = (time.perf_counter() - financials_start) * 1000.0
+            return financial_statements, financials_status, financials_health, financials_errors, financials_latency, financials_url
+
+        # Execute all fetches in parallel using asyncio.gather() as requested
+        import asyncio
         
+        async def fetch_all_concurrently():
+            return await asyncio.gather(
+                asyncio.to_thread(fetch_profile),
+                asyncio.to_thread(fetch_market),
+                asyncio.to_thread(fetch_news),
+                asyncio.to_thread(fetch_financials)
+            )
+            
+        try:
+            # We are inside a thread (due to asyncio.to_thread in chat.py), so we use asyncio.run
+            res_profile, res_market, res_news, res_financials = asyncio.run(fetch_all_concurrently())
+        except Exception as e:
+            logger.error(f"EvidenceCollector: asyncio.gather execution failed: {e}")
+            raise
+            
+        profile_data, profile_status, profile_health, profile_errors, profile_latency, profile_url = res_profile
+        market_data, market_status, market_health, market_errors, market_latency, market_url = res_market
+        raw_news, news_status, news_health, news_errors, news_latency, news_url = res_news
+        financial_statements, financials_status, financials_health, financials_errors, financials_latency, financials_url = res_financials
+
         # Profile records mapping diagnostic counts
         profile_fields = [profile_data.employees, profile_data.businessSummary, profile_data.marketCap,
                           profile_data.sector, profile_data.industry, profile_data.country]
@@ -598,28 +704,6 @@ class EvidenceCollector:
             errors_list=profile_errors
         )
 
-        # ── 2. Fetch Market Data ──
-        market_start = time.perf_counter()
-        market_url = f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(ticker)}?range=1d&interval=1d"
-        market_data = MarketData()
-        market_status = "failed"
-        market_health = 0.0
-        market_errors = []
-        
-        try:
-            market_data = self.market_provider.fetch_market_data(ticker)
-            if market_data.retrieved_successfully:
-                market_status = "success"
-                market_health = 1.0
-            else:
-                market_status = "empty"
-                market_health = 0.8
-        except Exception as e:
-            market_errors.append(str(e))
-            logger.error(f"EvidenceCollector: Market provider failed: {str(e)}")
-            
-        market_latency = (time.perf_counter() - market_start) * 1000.0
-        
         # Market records mapping diagnostic counts
         market_fields = [market_data.currentPrice, market_data.previousClose, market_data.fiftyTwoWeekHigh, market_data.fiftyTwoWeekLow]
         market_retrieved_count = sum(1 for f in market_fields if f is not None)
@@ -641,27 +725,6 @@ class EvidenceCollector:
             errors_list=market_errors
         )
 
-        # ── 3. Fetch News ──
-        news_start = time.perf_counter()
-        news_url = f"{YAHOO_SEARCH_URL}?q={urllib.parse.quote(ticker)}&newsCount=5"
-        raw_news: List[NewsItem] = []
-        news_status = "failed"
-        news_health = 0.0
-        news_errors = []
-        
-        try:
-            raw_news = self.news_provider.fetch_news(ticker)
-            if raw_news:
-                news_status = "success"
-                news_health = 1.0
-            else:
-                news_status = "empty"
-                news_health = 0.8
-        except Exception as e:
-            news_errors.append(str(e))
-            logger.error(f"EvidenceCollector: News provider failed: {str(e)}")
-            
-        news_latency = (time.perf_counter() - news_start) * 1000.0
         news_retrieved_count = len(raw_news)
         news_expected_count = 5
         news_quality = round(news_retrieved_count / news_expected_count, 4) if news_expected_count > 0 else 0.0
@@ -680,30 +743,6 @@ class EvidenceCollector:
             quality=news_quality,
             errors_list=news_errors
         )
-
-        # ── 4. Fetch Financial Statements ──
-        financials_start = time.perf_counter()
-        financial_statements = None
-        financials_error_reason = ""
-        financials_status = "failed"
-        financials_health = 0.0
-        financials_errors = []
-        financials_url = f"https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/{urllib.parse.quote(ticker)}"
-        
-        try:
-            financial_statements = self.financials_provider.fetch_financial_statements(ticker)
-            if financial_statements.retrieved_successfully:
-                financials_status = "success"
-                financials_health = 1.0
-            else:
-                financials_status = "empty"
-                financials_health = 0.8
-        except Exception as e:
-            financials_error_reason = str(e)
-            financials_errors.append(financials_error_reason)
-            logger.error(f"EvidenceCollector: Financials provider failed for '{ticker}': {financials_error_reason}")
-
-        financials_latency = (time.perf_counter() - financials_start) * 1000.0
 
         # Compile and calculate metrics if financials succeeded
         if financial_statements and financial_statements.retrieved_successfully:
@@ -794,7 +833,7 @@ class EvidenceCollector:
         
         profile_ev = CompanyProfileEvidence(
             companyName=make_field(
-                value=resolver_result.get("companyName") or profile_data.companyName,
+                value=best_company_name,
                 source="Company Resolver",
                 confidence=resolver_confidence
             ),

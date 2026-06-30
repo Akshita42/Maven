@@ -35,8 +35,8 @@ def get_query_types() -> List[str]:
     """Retrieves all query types from the centralized FINANCIAL_FIELD_MAP."""
     types = []
     for canonical_key, freq_map in FINANCIAL_FIELD_MAP.items():
-        types.append(freq_map["annual"])
-        types.append(freq_map["quarterly"])
+        types.extend(freq_map["annual"])
+        types.extend(freq_map["quarterly"])
     return types
 
 class YahooFinancialsProvider(FinancialsProvider):
@@ -98,15 +98,18 @@ class YahooFinancialsProvider(FinancialsProvider):
                 # Determine frequency (annual vs quarterly) and locate canonical field name
                 freq = None
                 canonical_name = None
+                priority = 999
                 
                 for canon_key, freq_map in FINANCIAL_FIELD_MAP.items():
-                    if freq_map["annual"] == raw_type:
+                    if raw_type in freq_map["annual"]:
                         freq = "annual"
                         canonical_name = canon_key
+                        priority = freq_map["annual"].index(raw_type)
                         break
-                    elif freq_map["quarterly"] == raw_type:
+                    elif raw_type in freq_map["quarterly"]:
                         freq = "quarterly"
                         canonical_name = canon_key
+                        priority = freq_map["quarterly"].index(raw_type)
                         break
                 
                 if not freq or not canonical_name:
@@ -128,7 +131,11 @@ class YahooFinancialsProvider(FinancialsProvider):
                     
                     if date_str not in data_map[freq]:
                         data_map[freq][date_str] = {}
-                    data_map[freq][date_str][canonical_name] = int_val
+                        
+                    current_priority = data_map[freq][date_str].get(f"{canonical_name}_priority", 999)
+                    if priority < current_priority:
+                        data_map[freq][date_str][canonical_name] = int_val
+                        data_map[freq][date_str][f"{canonical_name}_priority"] = priority
             
             # 2. Build Statement lists with provenance envelopes
             annual_is: List[IncomeStatement] = []

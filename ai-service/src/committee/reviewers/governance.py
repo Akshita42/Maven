@@ -76,7 +76,7 @@ class GovernanceReviewer(BaseReviewer):
 
         for stmt in sec.statements:
             finding = stmt.finding.lower()
-            supporting.append(stmt.statementId)
+            supporting.append(stmt.finding)
             
             if stmt.ruleId:
                 decision_refs.append(stmt.ruleId)
@@ -84,7 +84,7 @@ class GovernanceReviewer(BaseReviewer):
                 
             if "missing qualitative" in finding or "capped" in finding:
                 concerns.append("Board registry and executive compensation committees files are missing.")
-                conflicting.append(stmt.statementId)
+                conflicting.append(stmt.finding)
                 missing.extend(["boardOfDirectorsRegistry", "compensationCommitteeLogs"])
 
         rec = OpinionRecommendation.QUESTION

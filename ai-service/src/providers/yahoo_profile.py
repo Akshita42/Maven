@@ -123,9 +123,17 @@ class YahooProfileProvider(CompanyProfileProvider):
         sector = profile.get("sector")
         industry = profile.get("industry")
         country = profile.get("country")
+        
+        long_name = price.get("longName") or price.get("longname")
+        short_name = price.get("shortName") or price.get("shortname")
+        display_name = price.get("displayName")
+        symbol = price.get("symbol")
+        
+        company_name = long_name or short_name or display_name or symbol or ticker
 
         logger.info(f"YahooProfileProvider: Mapped profile result model for '{ticker}' successfully.")
         return CompanyProfile(
+            companyName=company_name,
             ticker=ticker,
             employees=employees,
             businessSummary=summary,

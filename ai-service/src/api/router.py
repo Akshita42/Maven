@@ -22,6 +22,11 @@ api_router = APIRouter(prefix="/api/v1")
 # Path resolves to: GET /api/v1/health
 api_router.include_router(health_router, prefix="/health", tags=["health"])
 
+# Mount the chat streaming routes.
+# Path resolves to: POST /api/v1/chat/stream
+from src.api.routes.chat import router as chat_router
+api_router.include_router(chat_router, prefix="/chat", tags=["chat"])
+
 # Mount the company routes.
 # Path resolves to: POST /api/v1/company/resolve
 api_router.include_router(company_router, prefix="/company", tags=["company"])
@@ -45,3 +50,13 @@ api_router.include_router(committee_router, prefix="/committee", tags=["committe
 # Mount the critique routes.
 # Path resolves to: POST /api/v1/critique/evaluate
 api_router.include_router(critique_router, prefix="/critique", tags=["critique"])
+
+# Mount the recommendation routes.
+# Path resolves to: POST /api/v1/recommendation/build
+from src.api.routes.recommendation import router as recommendation_router
+api_router.include_router(recommendation_router, prefix="/recommendation", tags=["recommendation"])
+
+# Mount the report routes.
+# Path resolves to: POST /api/v1/report/build
+from src.api.routes.report import router as report_router
+api_router.include_router(report_router, prefix="/report", tags=["report"])

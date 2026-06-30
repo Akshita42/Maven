@@ -34,7 +34,7 @@ app = FastAPI(
 # (Only required if called cross-origin from frontend, but standard safety)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Node.js backend to Python backend is internal server-to-server
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

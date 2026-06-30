@@ -76,7 +76,7 @@ class ValuationReviewer(BaseReviewer):
 
         for stmt in sec.statements:
             finding = stmt.finding.lower()
-            supporting.append(stmt.statementId)
+            supporting.append(stmt.finding)
             
             if stmt.ruleId:
                 decision_refs.append(stmt.ruleId)
@@ -84,7 +84,7 @@ class ValuationReviewer(BaseReviewer):
                 
             if "missing sector peer" in finding or "capped" in finding:
                 concerns.append("Benchmark valuation databases (analyst/multiples/DCF) are missing.")
-                conflicting.append(stmt.statementId)
+                conflicting.append(stmt.finding)
                 missing.extend(["peerMultiplesDatabase", "analystEstimates", "discountedCashFlowModelInputs"])
 
         rec = OpinionRecommendation.QUESTION
