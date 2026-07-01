@@ -378,6 +378,9 @@ def choose_best_candidate(scored_candidates: List[Candidate], normalized_query: 
 
 # ── Main Coordinator Function ──
 
+from functools import lru_cache
+
+@lru_cache(maxsize=128)
 def resolve_company_metadata(query: str) -> ResolverResult:
     """
     Coordinating function for the Company Resolver pipeline.

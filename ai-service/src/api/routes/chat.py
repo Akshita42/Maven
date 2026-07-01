@@ -194,9 +194,10 @@ async def chat_stream(payload: ChatStreamRequest, request: Request):
                                 positives_str = top_positives[0]
                                 
                             primary_risk = lower_first(risks[0]) if risks else "broader market conditions"
+                            chat_decision = "INVEST" if stance == "BUY" else "PASS"
                             
                             natural_response = (
-                                f"I finished analyzing {company_name}. Based on the available evidence, I currently recommend **{stance}**.\n\n"
+                                f"I've completed my research on {company_name}. Based on the available evidence, my recommendation is **{chat_decision}**.\n\n"
                                 f"The strongest reasons are {positives_str}. The biggest concern is {primary_risk}.\n\n"
                                 f"You can ask me to explain any part of this recommendation or challenge my reasoning."
                             )

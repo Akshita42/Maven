@@ -41,6 +41,28 @@ class GeminiService(BaseLLMService):
         self.last_tokens_used: Optional[int] = None
         self.last_finish_reason: Optional[str] = None
         
+    @staticmethod
+    def parse_json_safely(response_text: str) -> dict:
+        import json
+        import re
+        
+        text = response_text.strip()
+        
+        # Remove markdown fences if present
+        if text.startswith("```"):
+            # Find the first newline to skip ```json
+            first_newline = text.find("\n")
+            if first_newline != -1:
+                text = text[first_newline:].strip()
+            if text.endswith("```"):
+                text = text[:-3].strip()
+                
+        # Safe repair: trailing commas before closing braces/brackets
+        text = re.sub(r',(\s*[}\]])', r'\1', text)
+        
+        # Try parse
+        return json.loads(text)
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
@@ -49,12 +71,22 @@ class GeminiService(BaseLLMService):
     )
     def _call_gemini_with_retry(self, system_prompt: str, user_prompt: str, timeout: float) -> str:
         """Internal method to execute the Gemini call with Tenacity retries."""
-        print("ENTER GeminiService._call_gemini_with_retry")
-        start_time = time.time()
+        import datetime
+        
+        stage_start_time = time.time()
+        stage_start_iso = datetime.datetime.utcfromtimestamp(stage_start_time).isoformat() + "Z"
+        
+        # We don't have explicit application-level queues/locks here, but we will log it.
+        logger.info("GeminiService: Checking locks/queues: No application-level locks or queues are blocking this request.")
+        
+        api_request_sent_time = time.time()
+        api_request_iso = datetime.datetime.utcfromtimestamp(api_request_sent_time).isoformat() + "Z"
+        
+        logger.info(f"GeminiService Stage start time: {stage_start_iso}")
+        logger.info(f"GeminiService API request sent: {api_request_iso}")
+        logger.info(f"GeminiService Model name: {self.model_name}")
+        
         try:
-            logger.info(f"GeminiService: Generating response with model {self.model_name}")
-            
-            # We inject response_mime_type conditionally based on the class state or passed param
             config_kwargs = {
                 "system_instruction": system_prompt,
                 "temperature": self.temperature
@@ -68,8 +100,16 @@ class GeminiService(BaseLLMService):
                 config=types.GenerateContentConfig(**config_kwargs)
             )
             
+            response_received_time = time.time()
+            response_iso = datetime.datetime.utcfromtimestamp(response_received_time).isoformat() + "Z"
+            logger.info(f"GeminiService First byte/response received: {response_iso}")
+            
+            prompt_tokens = 0
+            completion_tokens = 0
             if response.usage_metadata:
                 self.last_tokens_used = response.usage_metadata.total_token_count
+                prompt_tokens = response.usage_metadata.prompt_token_count
+                completion_tokens = response.usage_metadata.candidates_token_count
             else:
                 self.last_tokens_used = 0
                 
@@ -78,15 +118,22 @@ class GeminiService(BaseLLMService):
             else:
                 self.last_finish_reason = "UNKNOWN"
                 
-            elapsed = time.time() - start_time
+            stage_end_time = time.time()
+            stage_end_iso = datetime.datetime.utcfromtimestamp(stage_end_time).isoformat() + "Z"
+            duration = stage_end_time - stage_start_time
+            
+            logger.info(f"GeminiService Stage end time: {stage_end_iso}")
+            logger.info(f"GeminiService Duration of only that stage: {duration:.3f}s")
+            
+            # Log response length
+            raw_response_text = response.text if response.text else ""
+            logger.info(f"GeminiService Raw Response Length: {len(raw_response_text)} chars")
+            
             print(f"EXIT GeminiService._call_gemini_with_retry")
-            print(f"Elapsed time: {elapsed:.3f}s")
-            print(f"Returned object type: {type(response.text).__name__}")
-            print(f"Returned object size: {len(response.text) if response.text else 0}")
-            print(f"finish reason: {self.last_finish_reason}")
-            print(f"tokens: {self.last_tokens_used}")
-            print(f"response text length: {len(response.text) if response.text else 0}")
-            return response.text
+            print(f"Latency: {duration:.3f}s")
+            print(f"Prompt tokens: {prompt_tokens}")
+            print(f"Completion tokens: {completion_tokens}")
+            return raw_response_text
             
         except APIError as e:
             # Handle specific API errors

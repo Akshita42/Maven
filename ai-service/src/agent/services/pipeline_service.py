@@ -72,7 +72,7 @@ class PipelineService:
             
             # 4. Committee
             context.observer.on_event(StageStarted(stage="committee_review"))
-            committee = CommitteeOrchestrator.run_review(thesis)
+            committee = CommitteeOrchestrator.run_review(thesis, intelligence)
             context.observer.on_event(CommitteeCompleted(committee_decision={"overallConviction": committee.decisionOutcome.recommendation.value}))
             context.observer.on_event(StageCompleted(stage="committee_review"))
             
@@ -193,4 +193,40 @@ class PipelineService:
             raise TerminalAgentError(error_msg)
             
         context.observer.on_event(StageCompleted(stage="company_resolution"))
+
+        from src.report.service import ReportService
+        from src.utils.logger import logger
+        import datetime
+        from src.report.models import InvestmentReport
+        
+        cached_report = ReportService.get_latest_by_ticker(resolution.ticker)
+        if cached_report:
+            try:
+                compiled_at_str = cached_report.get("meta", {}).get("compiledAt", "")
+                if compiled_at_str.endswith("Z"):
+                    compiled_at_str = compiled_at_str[:-1]
+                compiled_at = datetime.datetime.fromisoformat(compiled_at_str)
+                now = datetime.datetime.utcnow()
+                age = now - compiled_at
+                
+                if age.total_seconds() < 12 * 3600:
+                    logger.info(f"PipelineService: REPORT CACHE HIT for {resolution.ticker}. Age: {age.total_seconds()/3600:.1f}h")
+                    
+                    # Quickly emit events so the UI checks off the pipeline stages
+                    stages = [
+                        "evidence_collection", "intelligence", "thesis_generation",
+                        "committee_review", "ai_critique", "recommendation", "report_compilation"
+                    ]
+                    for stage in stages:
+                        context.observer.on_event(StageStarted(stage=stage))
+                        context.observer.on_event(StageCompleted(stage=stage))
+                        
+                    return InvestmentReport(**cached_report)
+                else:
+                    logger.info(f"PipelineService: REPORT CACHE EXPIRED for {resolution.ticker}. Age: {age.total_seconds()/3600:.1f}h")
+            except Exception as e:
+                logger.error(f"PipelineService: Failed to evaluate cache age for {resolution.ticker}: {e}")
+        else:
+            logger.info(f"PipelineService: REPORT CACHE MISS for {resolution.ticker}")
+
         return PipelineService.run(resolution.model_dump(), context)

@@ -67,23 +67,33 @@ class PlannerAgent(BaseAgent):
         
         User Instruction: "{task.instruction}"
         """
-        try:
-            llm_service = GeminiService()
-            response_text = llm_service.generate_json_response(
-                system_prompt="You must respond in valid JSON format according to the schema: {'workflowType': 'ANALYSIS' | 'EXPLANATION' | 'CHALLENGE' | 'COMPARE' | 'OUT_OF_DOMAIN' | 'UNKNOWN', 'targetCompany': 'string (optional)'}",
-                user_prompt=prompt
-            )
-            import json
-            data = json.loads(response_text)
-            workflow_type = data.get("workflowType", "UNKNOWN")
-            target_company_from_llm = data.get("targetCompany")
-        except Exception as e:
-            # If LLM fails (e.g. 429 quota), we MUST propagate the error, not fallback to UNKNOWN/EXPLANATION
-            from src.agent.exceptions import TerminalAgentError
-            if isinstance(e, TerminalAgentError):
-                raise
-            print(f"Planner LLM Error: {e}")
-            raise TerminalAgentError(f"Planner classification failed: {str(e)}")
+        workflow_type = None
+        target_company_from_llm = None
+        llm_service = GeminiService()
+        
+        from src.utils.logger import logger
+        
+        for attempt in range(2):
+            try:
+                response_text = llm_service.generate_json_response(
+                    system_prompt="You must respond in valid JSON format according to the schema: {'workflowType': 'ANALYSIS' | 'EXPLANATION' | 'CHALLENGE' | 'COMPARE' | 'OUT_OF_DOMAIN' | 'UNKNOWN', 'targetCompany': 'string (optional)'}",
+                    user_prompt=prompt
+                )
+                data = GeminiService.parse_json_safely(response_text)
+                workflow_type = data.get("workflowType", "UNKNOWN")
+                target_company_from_llm = data.get("targetCompany")
+                
+                logger.info(f"PlannerAgent: JSON extraction succeeded on attempt {attempt+1}. Retry used: {attempt > 0}. Final status: SUCCESS")
+                break
+            except Exception as e:
+                from src.agent.exceptions import TerminalAgentError
+                if isinstance(e, TerminalAgentError):
+                    raise
+                logger.error(f"PlannerAgent: JSON parse failed on attempt {attempt+1}: {str(e)}")
+                if attempt == 1:
+                    logger.error("PlannerAgent: Final parse status: FAILED. Falling back to UNKNOWN.")
+                    workflow_type = "UNKNOWN"
+                    break
         
         # Validate LLM output deterministically
         if workflow_type not in ["ANALYSIS", "EXPLANATION", "CHALLENGE", "COMPARE", "OUT_OF_DOMAIN"]:

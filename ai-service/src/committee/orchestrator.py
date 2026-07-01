@@ -2,163 +2,179 @@
 # src/committee/orchestrator.py
 # ─────────────────────────────────────────────────────────────────
 #
-# CommitteeOrchestrator pulling reviewers dynamically and running review.
+# CommitteeOrchestrator invoking the AI Committee Gemini model.
 # ─────────────────────────────────────────────────────────────────
 
 import time
 import uuid
+import json
 from datetime import datetime
-from typing import List, Dict
+from typing import List
 
-from src.committee.registry import ReviewerRegistry
-from src.committee.voting import VotingEngine
-from src.committee.constants import ReviewStatus, ConflictSeverity, OpinionRecommendation
+from src.committee.constants import ReviewStatus, ConflictSeverity, OpinionRecommendation, ReviewerType
 from src.committee.models import (
     ConflictObject,
     CommitteeOpinion,
     CommitteeMetadata,
-    InvestmentCommitteeReview
+    InvestmentCommitteeReview,
+    DecisionOutcome,
+    VoteSummary
 )
 from src.thesis.models import InvestmentThesis
-from src.committee.utils import deduplicate_preserve_order
+from src.intelligence.models import InvestmentIntelligence
+from src.infrastructure.llm.gemini_service import GeminiService
+from src.utils.logger import logger
 
 class CommitteeOrchestrator:
     """
-    Orchestrates the sequential evaluation of the InvestmentThesis by
-    delegating to the dynamic ReviewerRegistry and VotingEngine.
+    Orchestrates the evaluation of the InvestmentThesis by
+    delegating to a single Gemini-driven AI Committee.
     """
     @staticmethod
-    def run_review(thesis: InvestmentThesis) -> InvestmentCommitteeReview:
+    def run_review(thesis: InvestmentThesis, intelligence: InvestmentIntelligence) -> InvestmentCommitteeReview:
         start_time = time.perf_counter()
         
-        # 1. Fetch dynamically registered reviewers
-        reviewers = ReviewerRegistry.get_reviewers()
-        
-        opinions: List[CommitteeOpinion] = []
-        reviewers_executed: List[str] = []
-        
-        # 2. Sequentially execute all registered reviewers
-        for rev in reviewers:
-            opinions.append(rev.review(thesis))
-            reviewers_executed.append(rev.reviewerId)
-            
-        # 3. Call Voting Engine to determine DecisionOutcome
-        decision = VotingEngine.compute_outcome(opinions)
-        
-        # 4. Compute overall statistics
-        confidences = [op.confidence for op in opinions]
-        overall_conf = round(sum(confidences) / len(confidences), 4) if confidences else 1.0
-        
-        coverages = [op.coverageScore for op in opinions]
-        overall_cov = round(sum(coverages) / len(coverages), 4) if coverages else 1.0
-        
-        success_reviews = sum(1 for op in opinions if op.status == ReviewStatus.SUCCESS)
-        total_reviews = len(opinions)
-        success_fraction = (success_reviews / total_reviews) if total_reviews > 0 else 1.0
-        
-        # overallHealth quality score: success rate (40%) + coverage (30%) + confidence (30%)
-        overall_health = round((success_fraction * 0.40) + (overall_cov * 0.30) + (overall_conf * 0.30), 4)
-        
-        # 5. Perform Conflict Detection with stable IDs (CF-001, CF-002, etc.)
-        conflicts: List[ConflictObject] = []
-        conflict_idx = 1
-        
-        def add_conflict(c_type: str, severity: ConflictSeverity, description: str, statements: List[str], rules: List[str], traces: List[str]):
-            nonlocal conflict_idx
-            conflicts.append(ConflictObject(
-                conflictId=f"CF-{conflict_idx:03d}",
-                type=c_type,
-                severity=severity,
-                description=description,
-                involvedStatements=deduplicate_preserve_order(statements),
-                ruleReferences=deduplicate_preserve_order(rules),
-                decisionTraceReferences=deduplicate_preserve_order(traces)
-            ))
-            conflict_idx += 1
+        # 1. Prepare Intelligence Summary
+        intel_summary_lines = []
+        for pillar_name, pillar_result in intelligence.pillars.items():
+            intel_summary_lines.append(f"[{pillar_name.upper()}]")
+            for finding in pillar_result.findings:
+                intel_summary_lines.append(f"- {finding}")
+        intel_summary = "\n".join(intel_summary_lines)
 
-        # Conflict CF-001: Contradictory Recommendations (Divergence)
-        has_support = any(op.recommendation == OpinionRecommendation.SUPPORT for op in opinions)
-        has_reject = any(op.recommendation == OpinionRecommendation.REJECT for op in opinions)
-        if has_support and has_reject:
-            involved_stmts = []
-            involved_rules = []
-            involved_traces = []
-            for op in opinions:
-                if op.recommendation in [OpinionRecommendation.SUPPORT, OpinionRecommendation.REJECT]:
-                    involved_stmts.extend(op.supportingStatements + op.conflictingStatements)
-                    involved_rules.extend(op.decisionReferences)
-                    involved_traces.extend(op.explanationIds)
-            add_conflict(
-                c_type="ContradictoryRecommendations",
-                severity=ConflictSeverity.CRITICAL,
-                description="Reviewer recommendations display divergent opinions (both SUPPORT and REJECT present).",
-                statements=involved_stmts,
-                rules=involved_rules,
-                traces=involved_rules
-            )
+        # 2. Prepare Thesis Summary
+        thesis_lines = []
+        for sec_name, section in thesis.sections.items():
+            thesis_lines.append(f"[{sec_name.upper()}]")
+            for stmt in section.statements:
+                thesis_lines.append(f"- {stmt.finding}")
+        thesis_summary = "\n".join(thesis_lines)
 
-        # Conflict CF-002: Low Coverage Detection
-        low_cov_reviewers = [op for op in opinions if op.coverageScore < 1.0]
-        if low_cov_reviewers:
-            involved_stmts = []
-            involved_rules = []
-            for op in low_cov_reviewers:
-                involved_stmts.extend(op.supportingStatements + op.conflictingStatements)
-                involved_rules.extend(op.decisionReferences)
-            add_conflict(
-                c_type="LowEvidenceCoverage",
-                severity=ConflictSeverity.WARNING,
-                description="Deducted coverage score flagged by one or more committee reviewers.",
-                statements=involved_stmts,
-                rules=involved_rules,
-                traces=involved_rules
-            )
+        system_prompt = (
+            "You are an experienced institutional investment committee responsible for deciding whether a company is investable based on the available evidence.\n"
+            "Your responsibility is to evaluate the complete investment case by weighing business quality, financial health, growth potential, valuation, management quality, and risk before reaching a balanced committee decision.\n"
+            "You are not writing the investment thesis. The thesis has already been prepared. Your role is to critically evaluate it, challenge its assumptions where necessary, and determine whether the available evidence justifies supporting, questioning, or rejecting the investment.\n\n"
+            "CRITICAL REQUIREMENTS:\n"
+            "3. Evaluate the overall investment case rather than the completeness of the available data.\n"
+            "4. Missing valuation metrics, peer comparisons, or secondary information should reduce confidence but should NOT automatically change a positive investment case into HOLD.\n"
+            "5. Recommend SUPPORT when the available evidence shows a fundamentally strong business whose strengths clearly outweigh its risks, even if some secondary information is unavailable.\n"
+            "6. Recommend HOLD only when the available evidence is genuinely mixed, conflicting, or contains material uncertainty that prevents a confident investment decision.\n"
+            "7. Recommend REJECT only when the available evidence demonstrates significant weaknesses that outweigh the company's strengths.\n"
+            "8. Clearly distinguish between:\n"
+            "   • What is known from the evidence.\n"
+            "   • What remains uncertain.\n"
+            "   • Why the final committee decision is justified despite those uncertainties.\n"
+            "Before making your decision, reason through the following questions internally:\n"
+            "• Is this fundamentally a good business?\n"
+            "• Are the company's financial fundamentals strong enough to support long-term investment?\n"
+            "• Do the company's strengths outweigh its risks?\n"
+            "• Are the uncertainties significant enough to change the investment decision, or do they only reduce confidence?\n"
+            "• If you were allocating your own capital today, would the available evidence justify investing?\n\n"
+            "9. Respond ONLY with a JSON object matching this schema:\n"
 
-        # Conflict CF-003: Validation Penalties Detection
-        has_validation_warnings = False
-        involved_stmts = []
-        involved_rules = []
-        for op in opinions:
-            if op.reviewerId == "RISK" and op.status == ReviewStatus.SUCCESS:
-                # Check concerns
-                if any("validation" in c.lower() or "coverage" in c.lower() for c in op.concerns):
-                    has_validation_warnings = True
-                    involved_stmts.extend(op.supportingStatements + op.conflictingStatements)
-                    involved_rules.extend(op.decisionReferences)
-        if has_validation_warnings:
-            add_conflict(
-                c_type="ValidationIssuesPresent",
-                severity=ConflictSeverity.WARNING,
-                description="Validation reports triggered rule failures or statements completeness penalties.",
-                statements=involved_stmts,
-                rules=involved_rules,
-                traces=involved_rules
-            )
+            "{\n"
+            '  "overallDecision": "SUPPORT" | "HOLD" | "REJECT",\n'
+            '  "confidenceLevel": "High" | "Medium" | "Low",\n'
+            '  "strongestStrengths": ["Strength 1", "Strength 2"],\n'
+            '  "biggestConcerns": ["Concern 1", "Concern 2"],\n'
+            '  "disagreements": ["Disagreement 1 (if any)"],\n'
+            '  "finalReasoning": "2-4 paragraphs explaining the decision"\n'
+            "}"
+        )
 
-        # Conflict CF-004: Weak Overall Confidence
-        if overall_conf < 0.70:
-            involved_stmts = []
-            involved_rules = []
-            for op in opinions:
-                involved_stmts.extend(op.supportingStatements + op.conflictingStatements)
-                involved_rules.extend(op.decisionReferences)
-            add_conflict(
-                c_type="WeakOverallConfidence",
-                severity=ConflictSeverity.INFO,
-                description="Overall committee confidence is low due to qualitative database gaps.",
-                statements=involved_stmts,
-                rules=involved_rules,
-                traces=involved_rules
+        user_prompt = (
+            f"Company: {thesis.ticker}\n\n"
+            f"--- FINANCIAL SUMMARY ---\n"
+            f"{intel_summary}\n\n"
+            f"--- AI INVESTMENT THESIS ---\n"
+            f"{thesis_summary}\n"
+        )
+
+        logger.info(f"CommitteeOrchestrator: Invoking Gemini AI Committee for {thesis.ticker}")
+        gemini = GeminiService()
+        
+        llm_output = None
+        for attempt in range(2):
+            try:
+                response_text = gemini.generate_json_response(system_prompt, user_prompt, timeout=25.0)
+                llm_output = GeminiService.parse_json_safely(response_text)
+                logger.info(f"CommitteeOrchestrator: AI Committee generated successfully on attempt {attempt+1}.")
+                break
+            except Exception as e:
+                logger.error(f"CommitteeOrchestrator: JSON parse failed on attempt {attempt+1}: {str(e)}")
+                if attempt == 1:
+                    logger.error("CommitteeOrchestrator: Final parse status: FAILED. Using fallback.")
+                    break
+
+        if not llm_output:
+            llm_output = {
+                "overallDecision": "HOLD",
+                "confidenceLevel": "Low",
+                "strongestStrengths": [],
+                "biggestConcerns": ["AI Committee failed to generate a response."],
+                "disagreements": [],
+                "finalReasoning": "Fallback committee response due to LLM failure."
+            }
+
+        # 3. Map to Opinion Recommendation
+        raw_rec = llm_output.get("overallDecision", "HOLD").upper().strip()
+        if raw_rec == "SUPPORT":
+            rec = OpinionRecommendation.SUPPORT
+        elif raw_rec == "REJECT":
+            rec = OpinionRecommendation.REJECT
+        else:
+            rec = OpinionRecommendation.QUESTION # Map HOLD to QUESTION for committee opinion
+
+        # We must populate a single CommitteeOpinion to preserve the existing schema
+        opinion = CommitteeOpinion(
+            reviewerId="AI_COMMITTEE",
+            reviewerType=None,
+            recommendation=rec,
+            recommendationImpact=1.0 if rec == OpinionRecommendation.SUPPORT else -1.0,
+            confidence=0.85 if llm_output.get("confidenceLevel") == "High" else 0.5,
+            coverageScore=1.0,
+            status=ReviewStatus.SUCCESS,
+            concerns=llm_output.get("biggestConcerns", []),
+            supportingStatements=llm_output.get("strongestStrengths", []),
+            conflictingStatements=llm_output.get("disagreements", []),
+            assumptions=[],
+            missingEvidence=[],
+            decisionReferences=[],
+            explanationIds=[],
+            reviewerVersion="2.0.0",
+            rulesVersion="2.0.0",
+            executionTimeMs=0.0
+        )
+        
+        opinions = [opinion]
+        
+        # 4. Map to DecisionOutcome
+        support_votes = 1 if rec == OpinionRecommendation.SUPPORT else 0
+        reject_votes = 1 if rec == OpinionRecommendation.REJECT else 0
+        question_votes = 1 if rec == OpinionRecommendation.QUESTION else 0
+        
+        decision = DecisionOutcome(
+            recommendation=rec,
+            decisionReasons=[llm_output.get("finalReasoning", "No reasoning provided.")],
+            voteSummary=VoteSummary(
+                supportVotes=support_votes,
+                questionVotes=question_votes,
+                rejectVotes=reject_votes
             )
+        )
+        
+        overall_conf = opinion.confidence
+        overall_cov = 1.0
+        overall_health = 1.0
 
         latency = (time.perf_counter() - start_time) * 1000.0
         
         meta = CommitteeMetadata(
-            committeeVersion="1.0.0",
-            votingVersion="1.0.0",
+            committeeVersion="2.0.0",
+            votingVersion="2.0.0",
             compiledAt=datetime.utcnow().isoformat() + "Z",
             latencyMs=round(latency, 2),
-            reviewersExecuted=reviewers_executed,
+            reviewersExecuted=["AI_COMMITTEE"],
             overallCoverage=overall_cov,
             overallHealth=overall_health
         )
@@ -172,6 +188,6 @@ class CommitteeOrchestrator:
             decisionOutcome=decision,
             overallConfidence=overall_conf,
             opinions=opinions,
-            conflicts=conflicts,
+            conflicts=[],
             meta=meta
         )

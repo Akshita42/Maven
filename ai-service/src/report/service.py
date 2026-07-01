@@ -26,6 +26,10 @@ class ReportService:
         return cls._repository.get_latest(session_id)
 
     @classmethod
+    def get_latest_by_ticker(cls, ticker: str) -> Optional[Dict[str, Any]]:
+        return cls._repository.get_latest_by_ticker(ticker)
+
+    @classmethod
     def get_by_session(cls, session_id: str) -> List[Dict[str, Any]]:
         return cls._repository.get_by_session(session_id)
 

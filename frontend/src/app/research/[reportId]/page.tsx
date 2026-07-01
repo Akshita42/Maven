@@ -56,6 +56,16 @@ export default function ReportPage({ params }: { params: Promise<{ reportId: str
   if (recommendation.stance === "SELL" || recommendation.stance === "STRONG_SELL") stanceColor = "text-[var(--color-maven-primary)] border-[var(--color-maven-primary)]/30 bg-[var(--color-maven-primary)]/10";
 
   const traceMetrics: any[] = [];
+  const investDecision =
+  recommendation.stance === "BUY" || recommendation.stance === "STRONG_BUY"
+    ? "INVEST"
+    : "PASS";
+
+  const topReasons =
+  recommendation.keyPositives?.slice(0, 3) || [];
+
+  const biggestConcern =
+  recommendation.keyRisks?.[0] || "No significant concerns identified.";
   if (evidence?.financials?.value?.annualDerivedMetrics?.[0]?.metrics) {
     const finMetrics = evidence.financials.value.annualDerivedMetrics[0].metrics;
     if (finMetrics.revenueGrowthYoY && finMetrics.revenueGrowthYoY.value !== undefined) traceMetrics.push({ name: "Revenue Growth YoY", value: (finMetrics.revenueGrowthYoY.value * 100).toFixed(2) + '%', metadata: finMetrics.revenueGrowthYoY.provenance });
@@ -96,12 +106,92 @@ export default function ReportPage({ params }: { params: Promise<{ reportId: str
             </div>
           </div>
           <div className={`px-8 py-5 rounded-2xl border ${stanceColor} text-center min-w-[200px] shadow-2xl`}>
-            <div className="text-xs uppercase tracking-widest opacity-80 mb-2 font-semibold">Recommendation</div>
+            <div className="text-xs uppercase tracking-widest opacity-80 mb-2 font-semibold">Research Recommendation</div>
             <div className="text-3xl font-bold">{recommendation.stance.replace('_', ' ')}</div>
             <div className="mt-2 text-sm opacity-90">{recommendation.investmentOutlook}</div>
           </div>
         </div>
+         {/* Investment Decision */}
+<section className="space-y-8">
 
+  <div className="space-y-2">
+    <p className="text-xs uppercase tracking-[0.2em] text-[var(--color-maven-gray-500)]">
+      Should you invest today?
+    </p>
+
+    <h2
+      className={`text-5xl font-bold ${
+        investDecision === "INVEST"
+          ? "text-emerald-400"
+          : "text-yellow-400"
+      }`}
+    >
+      {investDecision}
+    </h2>
+
+    <p className="text-sm text-[var(--color-maven-gray-500)]">
+      Based on Maven's complete investment research pipeline.
+    </p>
+  </div>
+
+  <div className="max-w-4xl">
+    <p className="text-xs uppercase tracking-[0.2em] text-[var(--color-maven-gray-500)] mb-3">
+      Investment Summary
+    </p>
+
+    <p className="text-lg leading-8 text-[var(--color-maven-gray-300)]">
+      {recommendation.committeeReasons?.[0] ??
+        "No investment summary available."}
+    </p>
+  </div>
+
+  <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+
+    <div>
+
+      <p className="text-xs uppercase tracking-[0.2em] text-[var(--color-maven-gray-500)] mb-4">
+        Top Reasons
+      </p>
+
+     <div className="space-y-3">
+  {topReasons.length > 0 ? (
+    topReasons.map((reason: string, index: number) => (
+      <div key={index} className="flex items-start gap-3">
+        <span className="text-emerald-400 mt-1">✓</span>
+        <p className="text-[15px] text-[var(--color-maven-gray-300)] leading-relaxed">
+          {reason}
+        </p>
+      </div>
+    ))
+  ) : (
+    <p className="text-sm text-[var(--color-maven-gray-500)] italic">
+      No significant strengths were identified from the available evidence.
+    </p>
+  )}
+</div>
+
+    </div>
+
+    <div>
+
+      <p className="text-xs uppercase tracking-[0.2em] text-[var(--color-maven-gray-500)] mb-4">
+        Biggest Concern
+      </p>
+
+      <div className="flex items-start gap-3">
+        <span className="text-yellow-400 mt-1">⚠</span>
+
+        <p className="text-[15px] text-[var(--color-maven-gray-300)] leading-relaxed">
+          {biggestConcern}
+        </p>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</section>
         {/* Quick Stats Row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-[#110e0e] border border-white/5 rounded-2xl p-6">
@@ -114,16 +204,6 @@ export default function ReportPage({ params }: { params: Promise<{ reportId: str
             <div className="text-xs uppercase tracking-wider text-[var(--color-maven-gray-500)] mb-1">Horizon</div>
             <div className="text-lg font-medium">{recommendation.horizon}</div>
           </div>
-          <div className="bg-[#110e0e] border border-white/5 rounded-2xl p-6">
-            <Shield className="text-[var(--color-maven-secondary)] mb-3" size={24} />
-            <div className="text-xs uppercase tracking-wider text-[var(--color-maven-gray-500)] mb-1">Confidence Score</div>
-            <div className="text-lg font-medium">{(recommendation.confidenceScore * 100).toFixed(1)}%</div>
-          </div>
-          <div className="bg-[#110e0e] border border-white/5 rounded-2xl p-6">
-            <TrendingUp className="text-[var(--color-maven-secondary)] mb-3" size={24} />
-            <div className="text-xs uppercase tracking-wider text-[var(--color-maven-gray-500)] mb-1">Suggested Action</div>
-            <div className="text-sm font-medium">{recommendation.suggestedActions[0]?.split('→')[1]?.trim() || "HOLD"}</div>
-          </div>
         </div>
 
         {/* Bull Case & Bear Case */}
@@ -131,7 +211,7 @@ export default function ReportPage({ params }: { params: Promise<{ reportId: str
           {recommendation.keyPositives && recommendation.keyPositives.length > 0 && (
             <div className="space-y-6">
               <h2 className="text-2xl font-semibold flex items-center gap-3">
-                <CheckCircle2 className="text-emerald-500" /> Bull Case / Positives
+                <CheckCircle2 className="text-emerald-500" /> Reasons to Invest
               </h2>
               <ul className="space-y-4">
                 {recommendation.keyPositives.map((pos: string, i: number) => (
@@ -146,7 +226,7 @@ export default function ReportPage({ params }: { params: Promise<{ reportId: str
           {recommendation.keyRisks && recommendation.keyRisks.length > 0 && (
             <div className="space-y-6">
               <h2 className="text-2xl font-semibold flex items-center gap-3">
-                <AlertTriangle className="text-[var(--color-maven-primary)]" /> Bear Case / Risks
+                <AlertTriangle className="text-[var(--color-maven-primary)]" /> Reasons to Pass
               </h2>
               <ul className="space-y-4">
                 {recommendation.keyRisks.map((risk: string, i: number) => (
@@ -162,7 +242,7 @@ export default function ReportPage({ params }: { params: Promise<{ reportId: str
         {/* Investment Committee Transparency */}
         <div className="bg-[#110e0e] border border-white/5 rounded-[24px] p-8 md:p-10">
           <h2 className="text-2xl font-semibold mb-8 flex items-center gap-3">
-            <Users className="text-[var(--color-maven-secondary)]" /> Committee Decision Transparency
+            <Users className="text-[var(--color-maven-secondary)]" /> How Maven Reached This Decision
           </h2>
           <div className="grid grid-cols-1 gap-4 mb-8">
             {committee?.opinions && committee.opinions.length > 0 && committee.opinions.map((opinion: any, i: number) => {
@@ -191,7 +271,7 @@ export default function ReportPage({ params }: { params: Promise<{ reportId: str
           
           {recommendation.committeeReasons && recommendation.committeeReasons.length > 0 && (
             <>
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-maven-gray-400)] mb-4">Committee Rationale</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-maven-gray-400)] mb-4">Final Reasoning</h3>
               <ul className="space-y-3 mb-8">
                 {recommendation.committeeReasons.map((reason: string, i: number) => (
                   <li key={i} className="text-[15px] leading-relaxed text-[var(--color-maven-gray-300)] flex gap-3 items-start">
@@ -240,9 +320,9 @@ export default function ReportPage({ params }: { params: Promise<{ reportId: str
         {traceMetrics.length > 0 && (
           <div className="bg-[#110e0e] border border-white/5 rounded-[24px] p-8 md:p-10">
             <h2 className="text-2xl font-semibold mb-2 flex items-center gap-3">
-              <BarChart3 className="text-[var(--color-maven-secondary)]" /> Evidence Trace
+              <BarChart3 className="text-[var(--color-maven-secondary)]" /> Evidence Used
             </h2>
-            <p className="text-[var(--color-maven-gray-500)] mb-8 text-sm">Lineage of key metrics supporting the conclusion.</p>
+            <p className="text-[var(--color-maven-gray-500)] mb-8 text-sm">These are the most important data points used to reach the investment decision.</p>
             
             <div className="space-y-6">
               {traceMetrics.map((metric: any, i: number) => (

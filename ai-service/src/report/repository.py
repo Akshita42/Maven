@@ -18,6 +18,10 @@ class ReportRepository(ABC):
         pass
 
     @abstractmethod
+    def get_latest_by_ticker(self, ticker: str) -> Optional[Dict[str, Any]]:
+        pass
+
+    @abstractmethod
     def get_by_session(self, session_id: str) -> List[Dict[str, Any]]:
         pass
 
@@ -71,6 +75,19 @@ class FileReportRepository(ReportRepository):
 
     def get_latest(self, session_id: str) -> Optional[Dict[str, Any]]:
         reports = self.get_by_session(session_id)
+        return reports[0] if reports else None
+
+    def get_latest_by_ticker(self, ticker: str) -> Optional[Dict[str, Any]]:
+        reports = []
+        for file_path in glob.glob(os.path.join(self.base_dir, "*.json")):
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    if data.get("companyOverview", {}).get("ticker") == ticker:
+                        reports.append(data)
+            except Exception:
+                continue
+        reports.sort(key=lambda r: r.get("meta", {}).get("compiledAt", ""), reverse=True)
         return reports[0] if reports else None
 
     def delete(self, report_id: str) -> bool:

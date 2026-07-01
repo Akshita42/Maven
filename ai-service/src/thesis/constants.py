@@ -12,6 +12,7 @@ SECTION_MAP = {
     "valuation": "Valuation Summary",
     "risk": "Risk Assessment",
     "management": "Management Assessment",
+    "overall": "Overall Investment Thesis",
 }
 
 STATEMENT_PREFIX_MAP = {
@@ -21,4 +22,5 @@ STATEMENT_PREFIX_MAP = {
     "valuation": "VL-ST",
     "risk": "RK-ST",
     "management": "MG-ST",
+    "overall": "OV-ST",
 }

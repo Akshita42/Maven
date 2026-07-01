@@ -110,7 +110,7 @@ Answer the user's query naturally based on this context.
                 stance = reports_to_include[0].get("recommendation", {}).get("stance", "HOLD")
                 
                 answer = (
-                    f"My connection to the explanation engine is currently experiencing high load. "
+                    f"This explanation is unavailable because an AI synthesis was unavailable. "
                     f"However, based on the completed deterministic report for {company}, my recommendation remains a **{stance}**."
                 )
                 tokens_used = 0
