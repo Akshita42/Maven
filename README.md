@@ -1,172 +1,58 @@
 # Maven - AI Investment Research Copilot
+*(Submission for Altuni AI Labs - AI Product Development Engineer)*
 
-## Project Overview
+## Overview — What it does
+Maven is an institutional-grade, AI-powered equity research platform. Instead of a standard chatbot that spits out walls of text, Maven acts as a professional financial analyst. It takes a company name, autonomously scrapes real-time financial evidence, and runs the data through a multi-agent **"AI Committee."** 
 
-Maven is an AI-powered investment research copilot that helps users analyze publicly traded companies through a conversational interface. Instead of manually reading financial statements, calculating ratios, and switching between multiple websites, users can simply ask Maven to research a company and receive a structured investment report along with the reasoning behind the recommendation.
+This committee evaluates the company across multiple pillars (Growth, Valuation, Risk, Health), debates the thesis, and delivers a highly structured, visually stunning investment report with a final `INVEST` or `PASS` recommendation.
 
-The project combines deterministic financial analysis with conversational AI. Financial metrics are calculated programmatically to ensure consistency, while Large Language Models (LLMs) are used to understand user intent and explain the results in natural language.
+## Key decisions & trade-offs (Please Read)
 
+### 1. The Microservice Architecture (Python AI vs LangChain.js)
+The assignment requested: `React/Next.js (front end) · Node.js/Next.js (back end) · LangChain.js`. 
 
-## Motivation
+**The Trade-off:** While I am fully proficient in JS/TS and utilized **Next.js API Routes** as the primary backend API Gateway, I made the deliberate architectural decision to build the core AI orchestration as a dedicated **Python Microservice** (FastAPI) instead of using LangChain.js natively. 
 
-## Motivation
+**Why?** To build an enterprise-grade AI product in 7 days, I wanted to go beyond a simple single-prompt wrapper. Maven utilizes a complex, multi-agent "AI Committee" that strictly separates deterministic data gathering from LLM reasoning to eliminate financial hallucinations. Python remains the most robust, mature ecosystem for this level of AI orchestration. I prioritized building an exceptional, resilient product architecture. **I am fully prepared to rebuild this pipeline in LangChain.js for production.**
 
-While learning about investing, I realized that understanding a company's financial health usually involves jumping between multiple sources, reading lengthy reports, and manually interpreting financial metrics. Although LLMs can summarize information well, they are not always reliable when performing numerical calculations.
+### 2. Deterministic Math vs LLM Math
+LLMs are terrible at math. Instead of asking the AI to calculate P/E ratios or Revenue Growth, Maven uses a deterministic Python script to calculate all financial metrics from raw Yahoo Finance data. The LLM is only given the *final, verified numbers* to reason about.
 
-The goal behind Maven was to combine deterministic financial analysis with AI-assisted explanations. Rather than asking an LLM to calculate financial metrics, Maven computes those values programmatically and uses AI where it provides the most value—understanding user questions and explaining investment reasoning.
+### 3. The Evidence Audit Tracker (Combating Black Boxes)
+Trust is the biggest hurdle for AI in FinTech. To combat the "black box" effect, I built an **Evidence Audit** data room into the bottom of every report. It displays the exact metric, value, and source that the AI was fed, ensuring complete transparency for the user.
 
-## Design Philosophy
+## How it works — Approach and Architecture
 
-One of the main design goals of Maven was to separate factual computation from language generation.
+Maven relies on a microservice architecture communicating via Server-Sent Events (SSE) for real-time streaming:
 
-Financial calculations such as profitability, liquidity, leverage, and growth metrics are computed deterministically so that the same financial data always produces the same analytical result. This avoids numerical hallucinations and keeps the analysis reproducible.
+1. **Frontend (Next.js / React):** A premium, dark-themed dashboard built with Tailwind and Framer Motion. 
+2. **API Gateway (Next.js API Routes / Node.js):** Acts as the backend router, proxying requests securely to the AI worker.
+3. **AI Worker (Python / FastAPI / LangChain):** 
+   - **Company Resolution:** Maps user input (e.g., "Apple") to ticker (AAPL).
+   - **Evidence Collection:** Scrapes Yahoo Finance.
+   - **AI Committee Review:** Multiple LLM personas review the data independently and vote.
+   - **Recommendation Generation:** Synthesizes the votes into a final `BUY/SELL/HOLD` report.
 
-LLMs are used for tasks where natural language understanding is important, such as interpreting user intent, answering follow-up questions, and explaining the reasoning behind an investment recommendation.
-
-This hybrid approach balances reliability, transparency, and usability.
-
-## Features
-
-### Research
-- Company search and resolution
-- Automated evidence collection
-- Fundamental financial analysis
-- Structured investment report
-
-### AI Assistance
-- Conversational interface
-- Follow-up questions
-- Context-aware explanations
-- Natural language interaction
-
-### Engineering
-- Streaming responses using SSE
-- Report persistence
-- Transparent evidence collection
-- Modular backend architecture
-
-## Tech Stack
-
-**Frontend:**
-- Next.js (React)
-- Tailwind CSS (Styling)
-- Framer Motion (Animations)
-- Lucide React (Icons)
-
-**Backend:**
-- Python 3.10+
-- FastAPI (REST and Server-Sent Events)
-- Uvicorn (ASGI Server)
-- Google Gemini API (LLM Integration)
-- Yahoo Finance endpoints (via HTTP requests)
-
-## High-Level Architecture
-
-User
-    │
-    ▼
-Conversation Layer
-    │
-    ▼
-Intent Planning
-    │
-    ▼
-Evidence Collection
-    │
-    ▼
-Financial Analysis
-    │
-    ▼
-Review & Recommendation
-    │
-    ▼
-Report Generation
-    │
-    ▼
-Conversational Explanation
-
-## Folder Structure
-
-```
-Maven/
-├── ai-service/             # Python backend
-│   ├── src/
-│   │   ├── agent/          # LLM integrations (Planner, Explanation, Research wrappers)
-│   │   ├── intelligence/   # Deterministic financial analyzers (Growth, Health, etc.)
-│   │   ├── thesis/         # Data repackaging for sections
-│   │   ├── committee/      # Review and evaluation modules
-│   │   ├── recommendation/ # Recommendation generation
-│   │   ├── report/         # # Report creation layer
-│   │   └── main.py         # FastAPI entry point
-│   ├── requirements.txt
-│   └── .env.example
-└── frontend/               # Next.js frontend
-    ├── src/
-    │   ├── app/            # Pages and routing
-    │   ├── components/     # UI Components
-    │   └── lib/            # API services and utilities
-    ├── package.json
-    └── tailwind.config.ts
-```
-
-## Installation
+## How to run it
 
 ### Prerequisites
 - Node.js (v18+)
 - Python (3.10+)
-- A Google Gemini API Key
+- Google Gemini API Key
 
-### Clone the Repository
+### 1. Start the AI Microservice (Backend)
 ```bash
-git clone <repository_url>
-cd Maven
+cd ai-service
+python -m venv .venv
+
+# Windows:
+.venv\Scripts\activate
+# Mac/Linux:
+source .venv/bin/activate
+
+pip install -r requirements.txt
 ```
-
-## Running the Backend
-
-1. Navigate to the `ai-service` directory:
-   ```bash
-   cd ai-service
-   ```
-2. Create and activate a virtual environment:
-   ```bash
-   python -m venv .venv
-   # Windows:
-   .venv\Scripts\activate
-   # Mac/Linux:
-   source .venv/bin/activate
-   ```
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-4. Set up environment variables (see below).
-5. Run the server:
-   ```bash
-   python -m uvicorn src.main:app --reload
-   ```
-   The backend will be available at `http://localhost:8000`.
-
-## Running the Frontend
-
-1. Navigate to the `frontend` directory:
-   ```bash
-   cd frontend
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Start the development server:
-   ```bash
-   npm run dev
-   ```
-   The frontend will be available at `http://localhost:3000`.
-
-## Environment Variables
-
-In the `ai-service` directory, create a `.env` file based on `.env.example`:
-
+Create a `.env` file in `ai-service`:
 ```env
 ENV=development
 HOST=127.0.0.1
@@ -174,42 +60,30 @@ PORT=8000
 GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_MODEL=gemini-2.5-flash
 ```
+Start the worker:
+```bash
+python -m uvicorn src.main:app
+```
 
-## Example Workflow
+### 2. Start the Frontend & API Gateway
+Open a new terminal:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Navigate to `http://localhost:3000` to use Maven.
 
-1. User asks Maven to analyze a company.
-2. Maven resolves the company and collects financial evidence.
-3. The financial analysis pipeline evaluates the available data.
-4. A structured investment report is generated.
-5. Users can continue the conversation by asking follow-up questions about the report.
+## Example Runs
+You can test the agent on any publicly traded company. Some great examples to try:
+- **NVIDIA (NVDA):** Watch the AI handle hyper-growth and high valuation.
+- **Intel (INTC):** Watch the AI committee critique declining margins and issue a PASS/SELL.
+- **Apple (AAPL):** See how the agent evaluates a mature, cash-rich business.
 
-## Example Questions
+## What I would improve with more time
+1. **Rewrite Orchestration in LangChain.js:** Fully consolidate the Python microservice into the Next.js Node backend to unify the codebase.
+2. **RAG for SEC Filings:** Integrate a vector database (like Pinecone) to allow the AI to read and cite the latest 10-K and 10-Q filings.
+3. **Auth & Portfolios:** Add user authentication so users can save reports and track the performance of Maven's recommendations over time.
 
-Analyze Microsoft
-
-Research NVIDIA
-
-Analyze Tata Consultancy Services
-
-What are the biggest risks?
-
-Why is the recommendation bullish?
-
-What could change this recommendation?
-
-Compare Microsoft with Google.
-
-Summarize this report.
-
-## Known Limitations
-
-- The current version focuses primarily on publicly traded companies with reliable financial data.
-- Financial data is collected from publicly available Yahoo Finance endpoints, which may occasionally be rate limited or unavailable.
-- The conversational assistant currently answers questions using the generated report as context rather than performing fresh research.
-- Some advanced investment techniques such as DCF modelling, analyst consensus, SEC filing analysis, and real-time news sentiment are outside the scope of the current implementation.
-
-## Future Scope
-
-Future work includes richer financial data sources, portfolio analysis, watchlists, SEC filing analysis, news sentiment, comparison workflows, and a more advanced AI-driven review pipeline capable of performing deeper investment reasoning while preserving deterministic financial calculations.
-
-Maven represents my attempt to combine traditional software engineering with modern AI to create a practical investment research assistant. Building this project taught me not only how to integrate LLMs into applications, but also when deterministic systems are the better engineering choice.
+---
+*Bonus points included: I have zipped my raw AI development logs (transcript.jsonl) in the submission folder so you can see exactly how I collaborated with my AI coding assistant to architect this product!*

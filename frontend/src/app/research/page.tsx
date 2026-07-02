@@ -62,7 +62,7 @@ export default function ResearchWorkspace() {
                 {
                   id: "restored-report",
                   role: "assistant",
-                  report: { reportId: data.data.reportId },
+                  report: data.data,
                 }
               ]);
             }
@@ -134,7 +134,7 @@ export default function ResearchWorkspace() {
           updateAssistantMsg({
             isThinking: false,
             stage: undefined,
-            report: hasReport ? { reportId: newReportId || reportData.reportId } : undefined,
+            report: hasReport ? reportData : undefined,
             content: content
           });
           setIsProcessing(false);
@@ -239,18 +239,66 @@ export default function ResearchWorkspace() {
                           </div>
                         ) : (
                           <div className="flex flex-col gap-4">
-                            {msg.content && (
+                            {msg.content && !msg.report?.recommendation && (
                               <div className="text-[15px] leading-relaxed text-gray-200 whitespace-pre-wrap">
                                 {msg.content}
                               </div>
                             )}
+                            {msg.report?.recommendation && (
+                              <div className="flex flex-col gap-6 text-[15px] text-gray-200 w-full mt-2">
+                                <div className="text-[15px] leading-relaxed bg-[#110e0e] p-4 rounded-xl border border-white/5">
+                                  I have finished my analysis on <span className="font-bold text-white">{msg.report.companyOverview?.companyName || msg.report.companyOverview?.ticker || "the company"}</span>. 
+                                  Based on the evidence and committee review, my final decision is to <strong className={`font-black tracking-wide ${msg.report.recommendation.stance.includes('BUY') ? 'text-emerald-400' : 'text-[var(--color-maven-primary)]'}`}>{msg.report.recommendation.stance.includes('BUY') ? 'INVEST' : 'PASS'}</strong>.
+                                </div>
+                                
+                                <div className="space-y-3">
+                                  <div className="space-y-4 text-gray-300 leading-relaxed text-base">
+                                    {msg.report.recommendation.chatSummary ? (
+                                      <p>{msg.report.recommendation.chatSummary}</p>
+                                    ) : (
+                                      msg.report.recommendation.committeeReasons?.flatMap((reason: string) => reason.split(/\n+/)).map((para: string, i: number) => (
+                                        <p key={i}>{para.trim()}</p>
+                                      ))
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                  {msg.report.recommendation.keyPositives?.length > 0 && (
+                                    <div className="space-y-3">
+                                      <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-maven-gray-500)] pb-2 border-b border-white/5">Key Drivers</h3>
+                                      <ul className="space-y-3">
+                                        {msg.report.recommendation.keyPositives.slice(0, 3).map((pos: string, i: number) => (
+                                          <li key={i} className="flex gap-3 text-gray-300 leading-relaxed items-start">
+                                            <span className="text-emerald-400 font-bold mt-0.5">✓</span> <span>{pos}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+
+                                  {msg.report.recommendation.keyRisks?.length > 0 && (
+                                    <div className="space-y-3">
+                                      <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-maven-gray-500)] pb-2 border-b border-white/5">Key Risks</h3>
+                                      <ul className="space-y-3">
+                                        {msg.report.recommendation.keyRisks.slice(0, 3).map((risk: string, i: number) => (
+                                          <li key={i} className="flex gap-3 text-gray-300 leading-relaxed items-start">
+                                            <span className="text-yellow-500 font-bold mt-0.5">⚠</span> <span>{risk}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                             {msg.report && msg.report.reportId && (
-                              <div className="mt-2 flex">
+                              <div className="mt-4 flex">
                                 <Link 
                                   href={`/research/${msg.report.reportId}`}
-                                  className="px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/10 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-2"
+                                  className="px-5 py-2.5 bg-white/10 hover:bg-white/20 border border-white/10 text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-2"
                                 >
-                                  <FileText size={14} /> View Full Report
+                                  <FileText size={16} /> View Full Report
                                 </Link>
                               </div>
                             )}

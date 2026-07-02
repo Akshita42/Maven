@@ -49,6 +49,7 @@ class InvestmentRecommendation(BaseModel):
     keyPositives: List[str]
     keyRisks: List[str]
     committeeReasons: List[str]
+    chatSummary: str = Field(default="", description="Conversational summary for the chat UI")
     critiqueHighlights: List[str]
     
     monitoringItems: List[MonitoringItem]

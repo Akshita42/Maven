@@ -72,7 +72,8 @@ class RecommendationBuilder:
             "Respond ONLY with a JSON object matching this schema:\n"
             "{\n"
             '  "recommendation": "BUY",\n'
-            '  "investment_thesis": "2-3 concise paragraphs explaining the overarching thesis and reasoning like a professional investment note.",\n'
+            '  "chat_summary": "A highly conversational, brief 2-3 sentence summary explaining the recommendation directly to the user (e.g. \'Google appears fundamentally strong... The primary uncertainty is valuation...\').",\n'
+            '  "executive_summary": "A professional, formal multi-paragraph Executive Summary for the front page of the investment report. Tell the story of the evidence.",\n'
             '  "why_this_recommendation": ["Bullet point 1", "Bullet point 2"],\n'
             '  "key_risks": ["Risk 1", "Risk 2"],\n'
             '  "key_assumptions": ["Assumption 1", "Assumption 2"],\n'
@@ -112,7 +113,8 @@ class RecommendationBuilder:
         if not llm_output:
             llm_output = {
                 "recommendation": "HOLD",
-                "investment_thesis": "This recommendation is based on the deterministic financial analysis because an AI synthesis was unavailable.",
+                "chat_summary": "This recommendation is based on deterministic financial analysis because AI synthesis was unavailable.",
+                "executive_summary": "This recommendation is based on the deterministic financial analysis because an AI synthesis was unavailable.",
                 "why_this_recommendation": ["Information currently unavailable."],
                 "key_risks": [],
                 "key_assumptions": [],
@@ -150,7 +152,9 @@ class RecommendationBuilder:
         # 4. Map text fields to report model
         key_positives = llm_output.get("why_this_recommendation", [])
         key_risks = llm_output.get("key_risks", [])
-        committee_reasons = [llm_output.get("investment_thesis", "No thesis provided.")]
+        chat_summary = llm_output.get("chat_summary", "No summary provided.")
+        executive_summary_text = llm_output.get("executive_summary", "No thesis provided.")
+        committee_reasons = [p.strip() for p in executive_summary_text.split('\n\n') if p.strip()]
         critique_highlights = llm_output.get("key_assumptions", [])
         
         monitoring_items = []
@@ -184,6 +188,7 @@ class RecommendationBuilder:
             keyPositives=key_positives,
             keyRisks=key_risks,
             committeeReasons=committee_reasons,
+            chatSummary=chat_summary,
             critiqueHighlights=critique_highlights,
             monitoringItems=monitoring_items,
             catalysts=catalysts,

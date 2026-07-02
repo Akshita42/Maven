@@ -1,46 +1,207 @@
-# How It Works
+# How Maven Works
 
-This document explains the complete, end-to-end flow of Maven when a user submits a research request. It outlines how the conversational inputs map to the backend logic, detailing both where AI is used and where deterministic code is used.
+This document explains the complete flow of Maven from the moment a user submits a query until a research report is generated and follow-up questions can be answered.
 
-## 1. Intent Classification (Planner Agent)
-When a user types a message (e.g., "Analyze Microsoft" or "Should I invest in it?"), the request first goes to the **Planner Agent**.
-- **What it does:** The Planner uses a Large Language Model (Google Gemini) to analyze the chat history, active report context, and the user's raw message.
-- **Output:** It classifies the request into an intent like `ANALYSIS` (for a new company), `EXPLANATION` (for a follow-up question), or `COMPARE`. It also extracts the target company name or ticker if a new search is required.
+The overall workflow is divided into multiple stages so that each component has a clear responsibility. This makes the system easier to maintain, debug, and extend while keeping the user experience conversational.
 
-## 2. Entity Resolution & Clarification
-If the intent is `ANALYSIS`, the system takes the extracted company name and hits the Yahoo Finance Search API.
-- If an exact match is found with high confidence, the pipeline continues.
-- If the search is ambiguous (e.g., searching for "TCS" returns multiple global companies), the pipeline pauses and returns a graceful message to the user asking them to pick the right one.
-- If the company is private or unlisted, it gracefully informs the user that it cannot be analyzed.
+---
 
-## 3. Evidence Collection
-Once a valid ticker symbol (e.g., `MSFT`) is locked in, the **Evidence Collector** kicks off.
-- **What it does:** It makes HTTP requests to various public endpoints (mainly Yahoo Finance) to download raw JSON and HTML data.
-- **Output:** It gathers Market Data, Company Profile strings, and large blocks of historical Financial Statements, packaging them into an `EvidencePackage`.
+# Step 1: User Request
 
-## 4. Financial Analysis (Intelligence Service)
-This is where the raw numbers are turned into human-readable insights.
-- **What it does:** The system runs the evidence through six **deterministic analyzers** (Business Quality, Financial Health, Growth, Valuation, Risk, Management).
-- **How it works (Truthful Implementation):** No LLMs are used here. Instead, it uses hardcoded mathematical rules. For example, if `operating_margin > 20%`, it pushes the string *"Strong operating margin"* to a list. 
-- **Output:** An `InvestmentIntelligence` object containing arrays of static text findings.
+Everything starts with a user entering a query in the chat interface.
 
-## 5. Thesis & Committee Evaluation
-The system simulates a multi-agent debate to decide whether to support or reject the stock.
-- **What it does:** The intelligence strings are repackaged into an `InvestmentThesis`. Then, various "Reviewers" in the `CommitteeOrchestrator` evaluate the thesis.
-- **How it works (Truthful Implementation):** Again, no LLMs are used here. The reviewers execute simple Python string-matching. For instance, the Business Reviewer scans the text for the phrase `"small enterprise"`. If it finds it, it votes to `REJECT/QUESTION` the stock. If it finds `"high-moat"`, it votes to `SUPPORT`.
-- **Output:** A `CommitteeReview` object containing the votes.
+Examples include:
 
-## 6. Recommendation Generation
-The final `BUY/HOLD/SELL` stance is computed.
-- **What it does:** The `RecommendationBuilder` takes the votes from the committee and applies a static matrix.
-- **How it works:** If the committee voted `SUPPORT` and confidence scores are mathematically > 80%, it outputs a `BUY`. If it voted `REJECT`, it outputs `SELL`. Otherwise, `HOLD`.
+- Analyze Microsoft
+- Research NVIDIA
+- Analyze Apple
+- Why did you recommend this?
+- What are the biggest risks?
 
-## 7. Report Generation
-The `ReportBuilder` gathers the Evidence, Thesis, Committee Review, and Recommendation objects and compiles them into a massive, heavily structured JSON document. This document is saved and a `reportId` is passed back to the frontend.
-The frontend uses this JSON to render the rich, visual dashboard the user sees.
+The frontend sends the request to the backend using Server-Sent Events (SSE), allowing progress updates to be streamed while the research is being performed.
 
-## 8. Conversational Follow-Up (Explanation Agent)
-Once the report is generated, the user can ask questions like *"Why did you recommend this?"* or *"What are the risks?"*
-- **What it does:** The Planner routes this to the **Explanation Agent**.
-- **How it works:** This agent uses Google Gemini. It takes the user's question, attaches the entire generated JSON report as context (RAG - Retrieval-Augmented Generation), and asks the LLM to generate a helpful, conversational answer based *only* on the data in the report.
-- **Output:** A natural language chat bubble responding directly to the user's inquiry.
+---
+
+# Step 2: Understanding the User's Intent
+
+The first backend component to process the request is the Planner.
+
+Its responsibility is understanding what the user wants to do.
+
+For example, it determines whether the user is:
+
+- requesting a new company analysis,
+- asking a follow-up question,
+- continuing an existing conversation,
+- or requesting a comparison.
+
+This prevents Maven from unnecessarily repeating the complete research workflow when an existing report can simply be reused.
+
+---
+
+# Step 3: Company Resolution
+
+If a new analysis is required, Maven identifies the correct publicly traded company.
+
+Users may enter:
+
+- Company names
+- Stock tickers
+- Abbreviations
+- Common names
+
+The Company Resolution module converts these into the correct publicly traded company.
+
+If multiple companies match the request, Maven asks the user for clarification before continuing.
+
+If the requested company is private or unavailable, Maven explains the situation naturally instead of exposing technical errors.
+
+---
+
+# Step 4: Evidence Collection
+
+Once the target company has been identified, Maven gathers the financial information required for analysis.
+
+The Evidence Collection stage retrieves information such as:
+
+- Company profile
+- Market data
+- Historical financial statements
+- Financial metrics
+- Basic company information
+
+The collected information is organized into a structured evidence package that becomes the foundation for the remaining analysis.
+
+---
+
+# Step 5: Financial Analysis
+
+The collected evidence is then evaluated from multiple financial perspectives.
+
+The analysis includes areas such as:
+
+- Business Quality
+- Financial Health
+- Growth
+- Valuation
+- Risk
+- Management
+
+Instead of relying on an LLM for numerical calculations, Maven evaluates financial metrics programmatically to ensure consistent and reproducible results.
+
+Each analysis produces structured findings that contribute to the overall investment assessment.
+
+---
+
+# Step 6: Review and Recommendation
+
+After the financial analysis is complete, Maven consolidates the findings into a structured review.
+
+This stage evaluates the available evidence and generates:
+
+- Overall investment outlook
+- Recommendation
+- Confidence
+- Key strengths
+- Primary concerns
+
+Separating this stage from financial analysis keeps the architecture modular and allows future improvements without redesigning the complete system.
+
+---
+
+# Step 7: Report Generation
+
+Once the recommendation has been generated, Maven creates a structured investment report.
+
+The report combines:
+
+- Company overview
+- Financial analysis
+- Investment findings
+- Recommendation
+- Supporting evidence
+
+The report is then stored and assigned a unique report identifier.
+
+Rather than repeating the complete research process, future conversations can simply reuse this report.
+
+---
+
+# Step 8: Conversational Follow-up
+
+One of the goals of Maven is to behave like an AI research copilot rather than a one-time report generator.
+
+After a report has been generated, users can continue asking questions naturally.
+
+For example:
+
+- Why was this recommendation made?
+- Explain this in simple terms.
+- What are the biggest risks?
+- Challenge this recommendation.
+- Compare it with Microsoft.
+
+Instead of performing another financial analysis, Maven retrieves the existing report and uses it as context to generate a conversational explanation.
+
+This keeps responses faster while ensuring they remain consistent with the original research.
+
+---
+
+# Error Handling
+
+Real-world financial data is not always available.
+
+Whenever possible, Maven avoids exposing technical errors directly to users.
+
+Instead, it attempts to explain problems in a conversational way.
+
+Examples include:
+
+- Company not found
+- Ambiguous company names
+- Private companies
+- Rate limits
+- Temporary service failures
+
+The goal is to provide helpful guidance rather than displaying internal implementation details.
+
+---
+
+# Complete Workflow
+
+The complete research lifecycle can be summarized as:
+
+```
+User Request
+      │
+      ▼
+Intent Planning
+      │
+      ▼
+Company Resolution
+      │
+      ▼
+Evidence Collection
+      │
+      ▼
+Financial Analysis
+      │
+      ▼
+Review & Recommendation
+      │
+      ▼
+Report Generation
+      │
+      ▼
+Conversation & Follow-up
+```
+
+---
+
+# Summary
+
+Maven combines deterministic financial analysis with conversational AI to create an investment research experience that is both reliable and easy to use.
+
+Financial calculations are handled programmatically to maintain consistency, while AI is used to understand user requests, explain recommendations, and support natural follow-up conversations.
+
+This separation allows Maven to provide transparent investment research while maintaining a conversational user experience.
