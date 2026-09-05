@@ -199,6 +199,8 @@ def committee_review_node(state: InvestmentResearchGraphState) -> Dict[str, Any]
     return {
         "committee_review": debate_result["review"],
         "debate_transcript": debate_result["transcript"],
+        "bull_case": debate_result.get("bull_case"),
+        "bear_case": debate_result.get("bear_case"),
         "execution_logs": state.get("execution_logs", []) + [f"Completed Bull vs. Bear adversarial debate for {ticker}"]
     }
 
@@ -253,7 +255,6 @@ def self_critique_node(state: InvestmentResearchGraphState) -> Dict[str, Any]:
             )
         )
     )
-
     
     return {
         "critique": critique,
@@ -299,6 +300,11 @@ def recommendation_builder_node(state: InvestmentResearchGraphState) -> Dict[str
     company = state.get("company", {})
     ticker = state.get("ticker", "AAPL")
     
+    bull_case = state.get("bull_case")
+    bear_case = state.get("bear_case")
+    debate_transcript = state.get("debate_transcript")
+    observability = state.get("observability_metrics")
+    
     logger.info(f"[LangGraph Node] RecommendationBuilderNode producing recommendation for: {ticker}")
     
     from src.recommendation.builder import RecommendationBuilder
@@ -306,7 +312,13 @@ def recommendation_builder_node(state: InvestmentResearchGraphState) -> Dict[str
     from src.report.service import ReportService
     
     recommendation = RecommendationBuilder.build(thesis, committee, critique)
-    report = ReportBuilder.build(evidence, intelligence, thesis, committee, critique, recommendation)
+    report = ReportBuilder.build(
+        evidence, intelligence, thesis, committee, critique, recommendation,
+        bullCase=bull_case,
+        bearCase=bear_case,
+        debateTranscript=debate_transcript,
+        observability=observability
+    )
     report_dict = report.model_dump()
     
     try:

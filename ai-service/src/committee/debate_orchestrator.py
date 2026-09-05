@@ -72,12 +72,12 @@ class DialecticDebateOrchestrator:
         # Arbitrator Decision Synthesis
         overall_score = getattr(intelligence, "overallScore", 7.0) if intelligence else 7.0
         
-        if overall_score >= 7.0:
+        if overall_score >= 5.5:
             rec = OpinionRecommendation.SUPPORT
             confidence = 0.88
             final_reasoning = f"The Investment Committee arbitrated the Bull vs. Bear debate in favor of {ticker.upper()}. Fundamental quality and high-moat profitability outweigh valuation downside risks."
             support_v, question_v, reject_v = 2, 1, 0
-        elif overall_score >= 5.0:
+        elif overall_score >= 4.0:
             rec = OpinionRecommendation.QUESTION
             confidence = 0.75
             final_reasoning = f"The Investment Committee concluded a balanced debate for {ticker.upper()}. Solid operational performance is offset by valuation risks, justifying a HOLD position."

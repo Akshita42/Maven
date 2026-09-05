@@ -70,9 +70,16 @@ class PipelineService:
             thesis = ThesisBuilder.build(intelligence)
             context.observer.on_event(StageCompleted(stage="thesis_generation"))
             
-            # 4. Committee
+            # 4. Committee (Adversarial Bull vs. Bear Debate)
             context.observer.on_event(StageStarted(stage="committee_review"))
-            committee = CommitteeOrchestrator.run_review(thesis, intelligence)
+            from src.committee.debate_orchestrator import DialecticDebateOrchestrator
+            debate_engine = DialecticDebateOrchestrator()
+            debate_result = debate_engine.run_debate(thesis.ticker, intelligence)
+            committee = debate_result["review"]
+            bull_case = debate_result.get("bull_case")
+            bear_case = debate_result.get("bear_case")
+            debate_transcript = debate_result.get("transcript")
+            
             context.observer.on_event(CommitteeCompleted(committee_decision={"overallConviction": committee.decisionOutcome.recommendation.value}))
             context.observer.on_event(StageCompleted(stage="committee_review"))
             
@@ -81,29 +88,14 @@ class PipelineService:
             
             # 5. Critique (Skip for standard analysis to save tokens)
             context.observer.on_event(StageStarted(stage="ai_critique"))
-            workflow_type = context.observer.workflow_id if hasattr(context, "workflow_type") else "ANALYSIS" # Wait, I don't have workflow_type in context directly. Let's pass it or extract from state in Orchestrator.
-            # Wait, PipelineService.run() doesn't have AgentState.
-            # But we can just use a stub unless it's a dedicated Critique route.
-            # Wait, the pipeline is used for both. If we just bypass it here:
-            llm_service = LLMFactory.get_llm_service()
-            
-            # The prompt says: "Do NOT automatically execute critique during every analysis... Normal analysis should stop after recommendation is generated."
-            # The user states: "Critique should execute ONLY when the user explicitly asks: Challenge..."
-            # Wait, how does the CHALLENGE workflow execute? Let's check orchestrator.py or AgentType.
-            # If agentType == CRITIC, it runs CritiqueAgent. The Planner routes to CritiqueAgent for CHALLENGE!
-            # Let's check if CritiqueAgent calls PipelineService! 
-            # If so, maybe CritiqueAgent does something different. 
-            # If PipelineService is ONLY used by RESEARCH agent (ANALYSIS), then we can always stub critique here!
-            
-            # Let me just generate a stub directly.
-            from src.critique.models import InvestmentCritique, RobustnessAnalysis, CoverageAudit, ActionableVulnerabilities, CritiqueMetadata, CritiqueStatus, CritiqueCompilerReport, RobustnessSummary
+            from src.critique.models import InvestmentCritique, RobustnessAnalysis, ActionableVulnerabilities, CritiqueMetadata, CritiqueStatus, CritiqueCompilerReport, RobustnessSummary
             from datetime import datetime
             critique = InvestmentCritique(
                 critiqueId="stub-critique",
                 thesisId=thesis.thesisId,
                 committeeReviewId=committee.committeeId,
                 intelligenceId=intelligence.intelligenceId,
-                evidenceId=thesis.evidenceId, # Or intelligence.evidenceId
+                evidenceId=thesis.evidenceId,
                 robustnessSummary=RobustnessSummary(
                     stabilityIndex=1.0,
                     assumptionQuality=1.0,
@@ -150,10 +142,29 @@ class PipelineService:
             context.observer.on_event(RecommendationGenerated(recommendation_data={"action": recommendation.stance.value}))
             context.observer.on_event(StageCompleted(stage="recommendation"))
             
-            # 7. Report
+            # 7. Observability & Report
             context.observer.on_event(StageStarted(stage="report_compilation"))
-            report = ReportBuilder.build(evidence, intelligence, thesis, committee, critique, recommendation)
+            from src.infrastructure.observability.evals import FaithfulnessEvaluator
+            from src.infrastructure.observability.tracer import ObservabilityTracer
+            evaluator = FaithfulnessEvaluator()
+            tracer = ObservabilityTracer()
+            evals_res = evaluator.evaluate(evidence, thesis, committee, recommendation)
+            telemetry = tracer.get_telemetry_report()
+            observability = {
+                "faithfulness": evals_res,
+                "telemetry": telemetry
+            }
+
+            report = ReportBuilder.build(
+                evidence, intelligence, thesis, committee, critique, recommendation,
+                bullCase=bull_case,
+                bearCase=bear_case,
+                debateTranscript=debate_transcript,
+                observability=observability
+            )
             context.observer.on_event(StageCompleted(stage="report_compilation"))
+            
+            return report
             
             return report
             

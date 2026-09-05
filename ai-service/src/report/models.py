@@ -5,6 +5,7 @@
 # Immutable domain models for the final Investment Report.
 # ─────────────────────────────────────────────────────────────────
 
+from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, ConfigDict
 from src.report.constants import ReportStatus
 from src.domain.contracts.evidence import EvidencePackage
@@ -43,12 +44,18 @@ class InvestmentReport(BaseModel):
     executiveSummary: ExecutiveSummary
     companyOverview: CompanyOverview
     
-    # Complete upstream models embedded
+    # Upstream models embedded
     evidence: EvidencePackage
     intelligence: InvestmentIntelligence
     thesis: InvestmentThesis
     committee: InvestmentCommitteeReview
     critique: InvestmentCritique
     recommendation: InvestmentRecommendation
+    
+    # Adversarial Debate & Observability Extensions
+    bullCase: Optional[Dict[str, Any]] = None
+    bearCase: Optional[Dict[str, Any]] = None
+    debateTranscript: Optional[List[Dict[str, Any]]] = None
+    observability: Optional[Dict[str, Any]] = None
     
     meta: ReportMetadata

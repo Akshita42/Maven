@@ -8,6 +8,7 @@
 
 import uuid
 from datetime import datetime
+from typing import Optional, Dict, List, Any
 from src.domain.contracts.evidence import EvidencePackage
 from src.intelligence.models import InvestmentIntelligence
 from src.thesis.models import InvestmentThesis
@@ -34,7 +35,11 @@ class ReportBuilder:
         thesis: InvestmentThesis,
         committee: InvestmentCommitteeReview,
         critique: InvestmentCritique,
-        recommendation: InvestmentRecommendation
+        recommendation: InvestmentRecommendation,
+        bullCase: Optional[Dict[str, Any]] = None,
+        bearCase: Optional[Dict[str, Any]] = None,
+        debateTranscript: Optional[List[Dict[str, Any]]] = None,
+        observability: Optional[Dict[str, Any]] = None
     ) -> InvestmentReport:
         
         # Extract CompanyName from evidence if possible, else default to Ticker
@@ -69,5 +74,9 @@ class ReportBuilder:
             committee=committee,
             critique=critique,
             recommendation=recommendation,
+            bullCase=bullCase,
+            bearCase=bearCase,
+            debateTranscript=debateTranscript,
+            observability=observability,
             meta=meta
         )

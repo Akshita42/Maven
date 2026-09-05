@@ -118,12 +118,12 @@ class CommitteeOrchestrator:
 
         # 3. Map to Opinion Recommendation
         raw_rec = llm_output.get("overallDecision", "HOLD").upper().strip()
-        if raw_rec == "SUPPORT":
+        if raw_rec in ["SUPPORT", "BUY", "INVEST", "STRONG_BUY"]:
             rec = OpinionRecommendation.SUPPORT
-        elif raw_rec == "REJECT":
+        elif raw_rec in ["REJECT", "SELL", "STRONG_SELL"]:
             rec = OpinionRecommendation.REJECT
         else:
-            rec = OpinionRecommendation.QUESTION # Map HOLD to QUESTION for committee opinion
+            rec = OpinionRecommendation.QUESTION
 
         # We must populate a single CommitteeOpinion to preserve the existing schema
         opinion = CommitteeOpinion(
