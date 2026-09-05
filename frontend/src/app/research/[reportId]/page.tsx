@@ -7,28 +7,45 @@ import { motion } from 'framer-motion';
 
 export default function ReportPage({ params }: { params: Promise<{ reportId: string }> }) {
   const resolvedParams = use(params);
+  const reportId = resolvedParams?.reportId;
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [devMode, setDevMode] = useState(false);
 
   useEffect(() => {
+    if (!reportId) return;
+    let isMounted = true;
+
     async function fetchReport() {
       try {
-        const response = await fetch(`http://localhost:8000/api/v1/report/${resolvedParams.reportId}`);
+        const response = await fetch(`http://localhost:8000/api/v1/report/${reportId}`);
         if (!response.ok) {
           throw new Error('Report not found');
         }
         const data = await response.json();
-        setReport(data.data);
+        if (isMounted) {
+          setReport(data.data);
+          setError(null);
+        }
       } catch (err: any) {
-        setError(err.message || 'Failed to load report');
+        if (isMounted) {
+          setError(err.message || 'Failed to load report');
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     }
+
     fetchReport();
-  }, [resolvedParams.reportId]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [reportId]);
+
 
   if (loading) {
     return (
