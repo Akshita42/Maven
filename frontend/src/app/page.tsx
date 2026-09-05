@@ -14,8 +14,7 @@ export default function LandingPage() {
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-[var(--color-maven-gray-400)]">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
             <a href="#how-it-works" className="hover:text-white transition-colors">How it Works</a>
-            <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
-            <a href="https://github.com/maven/maven" target="_blank" className="hover:text-white transition-colors">GitHub</a>
+            <a href="https://github.com/Akshita42/Maven" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">GitHub</a>
           </div>
           <Link 
             href="/research"

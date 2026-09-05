@@ -5,9 +5,7 @@ import { CheckCircle2, AlertTriangle, Target, Clock, Code, BookOpen, Shield, Tre
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 
-export default function ReportPage({ params }: { params: Promise<{ reportId: string }> }) {
-  const resolvedParams = use(params);
-  const reportId = resolvedParams?.reportId;
+function ReportView({ reportId }: { reportId: string }) {
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -15,25 +13,25 @@ export default function ReportPage({ params }: { params: Promise<{ reportId: str
 
   useEffect(() => {
     if (!reportId) return;
-    let isMounted = true;
 
+    let isSubscribed = true;
     async function fetchReport() {
       try {
-        const response = await fetch(`http://localhost:8000/api/v1/report/${reportId}`);
+        const response = await fetch(`/api/v1/report/${reportId}`);
         if (!response.ok) {
           throw new Error('Report not found');
         }
         const data = await response.json();
-        if (isMounted) {
+        if (isSubscribed) {
           setReport(data.data);
           setError(null);
         }
       } catch (err: any) {
-        if (isMounted) {
+        if (isSubscribed) {
           setError(err.message || 'Failed to load report');
         }
       } finally {
-        if (isMounted) {
+        if (isSubscribed) {
           setLoading(false);
         }
       }
@@ -42,10 +40,9 @@ export default function ReportPage({ params }: { params: Promise<{ reportId: str
     fetchReport();
 
     return () => {
-      isMounted = false;
+      isSubscribed = false;
     };
   }, [reportId]);
-
 
   if (loading) {
     return (
@@ -73,7 +70,6 @@ export default function ReportPage({ params }: { params: Promise<{ reportId: str
   if (recommendation.stance === "SELL" || recommendation.stance === "STRONG_SELL") stanceColor = "text-[var(--color-maven-primary)] border-[var(--color-maven-primary)]/30 bg-[var(--color-maven-primary)]/10";
 
   const investDecision = recommendation.stance.includes("BUY") ? "INVEST" : "PASS";
-  const traceMetrics: any[] = [];
 
   const marketDataMetrics: any[] = [];
   const financialMetrics: any[] = [];
@@ -112,6 +108,7 @@ export default function ReportPage({ params }: { params: Promise<{ reportId: str
     { title: "Financial Metrics", data: financialMetrics },
     { title: "Company Profile", data: profileMetrics },
   ].filter(section => section.data.length > 0);
+
   return (
     <div className="min-h-screen bg-[var(--color-maven-bg)] text-white">
       {/* Top Nav */}
@@ -199,183 +196,95 @@ export default function ReportPage({ params }: { params: Promise<{ reportId: str
           </div>
         </section>
 
-        <hr className="border-white/10" />
-
-        {/* 3. DETAILED INVESTMENT CASE */}
-        <section className="space-y-8 w-full">
-          <h2 className="text-3xl font-bold tracking-tight">Detailed Investment Case</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-            {/* Bull Case */}
-            <div className="space-y-6">
-              <h3 className="text-xl font-semibold flex items-center gap-3 text-emerald-400">
-                <CheckCircle2 /> Bull Case
-              </h3>
-              <div className="space-y-3">
-                {recommendation.keyPositives && recommendation.keyPositives.length > 0 ? (
-                  recommendation.keyPositives.map((pos: string, i: number) => (
-                    <div key={i} className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-4 text-[15px] leading-snug text-[var(--color-maven-gray-300)] flex gap-4 items-start">
-                      <span className="text-emerald-500 font-bold mt-0.5">+</span> 
-                      <p>{pos}</p>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-[var(--color-maven-gray-500)] italic text-sm">No significant strengths identified.</p>
-                )}
-              </div>
-            </div>
+        {/* 3. 6-PILLAR FINANCIAL INTELLIGENCE */}
+        {intelligence && intelligence.pillars && (
+          <section className="space-y-8 w-full">
+            <h2 className="text-sm uppercase tracking-[0.2em] text-[var(--color-maven-gray-500)] font-bold flex items-center gap-2">
+              <BarChart3 size={18} /> Deterministic Financial Intelligence
+            </h2>
             
-            {/* Bear Case */}
-            <div className="space-y-6">
-              <h3 className="text-xl font-semibold flex items-center gap-3 text-yellow-400">
-                <AlertTriangle /> Bear Case
-              </h3>
-              <div className="space-y-3">
-                {recommendation.keyRisks && recommendation.keyRisks.length > 0 ? (
-                  recommendation.keyRisks.map((risk: string, i: number) => (
-                    <div key={i} className="bg-[var(--color-maven-primary)]/5 border border-[var(--color-maven-primary)]/10 rounded-xl p-4 text-[15px] leading-snug text-[var(--color-maven-gray-300)] flex gap-4 items-start">
-                      <span className="text-[var(--color-maven-primary)] font-bold mt-0.5">-</span> 
-                      <p>{risk}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {Object.entries(intelligence.pillars).map(([pillarKey, pillar]: [string, any]) => (
+                <div key={pillarKey} className="bg-white/5 border border-white/10 rounded-2xl p-6 flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-center mb-4">
+                      <span className="text-xs uppercase tracking-wider font-bold text-gray-400">{pillarKey}</span>
+                      <span className="text-sm font-bold bg-white/10 px-2.5 py-1 rounded-md text-emerald-400">
+                        {pillar.rating ? pillar.rating : `${((pillar.rawScore !== undefined ? pillar.rawScore * 10 : (pillar.score || 0) * 100)).toFixed(0)}%`}
+                      </span>
                     </div>
-                  ))
-                ) : (
-                  <p className="text-[var(--color-maven-gray-500)] italic text-sm">No significant risks identified.</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <hr className="border-white/10" />
-
-        {/* 4. COMMITTEE SUMMARY & CATALYSTS */}
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-10 w-full">
-          {/* Committee Summary */}
-          <div className="space-y-8">
-            <h2 className="text-3xl font-bold tracking-tight">Committee Summary</h2>
-            
-            {recommendation.committeeReasons && recommendation.committeeReasons.length > 0 && (
-              <div className="text-[17px] leading-relaxed text-[var(--color-maven-gray-300)] space-y-4 max-w-[85ch]">
-                {recommendation.committeeReasons.map((reason: string, i: number) => (
-                  <p key={i}>{reason}</p>
-                ))}
-              </div>
-            )}
-
-            <div className="bg-[#110e0e] border border-white/5 rounded-3xl overflow-hidden shadow-xl h-fit flex flex-col">
-              <div className="overflow-x-auto flex-1">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-white/5 border-b border-white/10 text-[10px] uppercase tracking-widest text-[var(--color-maven-gray-500)]">
-                      <th className="p-4 font-bold">Committee Member</th>
-                      <th className="p-4 font-bold">Analysis Summary</th>
-                      <th className="p-4 font-bold text-center">Vote</th>
-                      <th className="p-4 font-bold text-center">Confidence</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {committee?.opinions && committee.opinions.length > 0 ? committee.opinions.map((opinion: any, i: number) => {
-                      const opColor = opinion.recommendation === "SUPPORT" ? "text-emerald-400 bg-emerald-500/10" : opinion.recommendation === "REJECT" ? "text-[var(--color-maven-primary)] bg-[var(--color-maven-primary)]/10" : "text-[var(--color-maven-gray-400)] bg-white/5";
-                      const pillarId = opinion.reviewerId || opinion.sourcePillarId || "Unknown";
-                      const displayName = typeof pillarId === 'string' ? pillarId.replace("intelligence-", "").replace(/_/g, " ") : "Unknown";
-                      const primaryReason = opinion.supportingStatements?.[0] || opinion.concerns?.[0] || "Committee analysis completed.";
-                      const conf = opinion.confidenceScore ?? opinion.confidence;
-                      const confDisplay = conf !== undefined ? (conf * 100).toFixed(0) + '%' : '--';
-                      
-                      return (
-                        <tr key={i} className="hover:bg-white/[0.02] transition-colors">
-                          <td className="p-4 text-xs font-bold uppercase tracking-widest text-white whitespace-nowrap">{displayName}</td>
-                          <td className="p-4 text-[13px] text-[var(--color-maven-gray-300)] leading-snug min-w-[200px]">{primaryReason}</td>
-                          <td className="p-4 text-center">
-                            <span className={`text-xs font-bold px-3 py-1.5 rounded-lg ${opColor}`}>
-                              {opinion.recommendation === "SUPPORT" ? "BUY" : opinion.recommendation === "REJECT" ? "SELL" : "HOLD"}
-                            </span>
-                          </td>
-                          <td className="p-4 text-center text-sm font-semibold text-[var(--color-maven-secondary)]">{confDisplay}</td>
-                        </tr>
-                      );
-                    }) : (
-                      <tr>
-                        <td colSpan={4} className="p-4 text-center text-sm text-[var(--color-maven-gray-500)] italic">No committee data available.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              
-            </div>
-          </div>
-
-          {/* What Could Change This */}
-          <div className="space-y-8">
-            <h2 className="text-3xl font-bold tracking-tight">What could change this?</h2>
-            <div className="bg-[#110e0e] border border-white/5 rounded-3xl p-8 shadow-xl h-fit flex flex-col gap-8">
-              {recommendation.catalysts?.length > 0 ? (
-                <ul className="space-y-5 flex-1">
-                  {recommendation.catalysts.map((cat: any, i: number) => (
-                    <li key={i} className="text-[15px] text-[var(--color-maven-gray-400)] leading-snug border-l-2 border-[var(--color-maven-secondary)] pl-5">
-                      {cat.description}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-[var(--color-maven-gray-500)] italic text-sm flex-1">No specific catalysts identified.</p>
-              )}
-              
-              {critique?.actionableVulnerabilities?.invalidatingAssumptions?.length > 0 && (
-                <div className="pt-6 border-t border-white/10">
-                  <h3 className="text-sm font-bold uppercase tracking-widest text-white mb-4 flex items-center gap-2">
-                    <Shield size={16} className="text-[var(--color-maven-gray-400)]" /> Key Assumptions
-                  </h3>
-                  <ul className="space-y-3">
-                    {critique.actionableVulnerabilities.invalidatingAssumptions.map((vuln: any, i: number) => (
-                      <li key={i} className="text-sm text-[var(--color-maven-gray-400)] leading-relaxed">
-                        • {vuln.description}
-                      </li>
-                    ))}
-                  </ul>
+                    <ul className="space-y-2">
+                      {pillar.findings?.slice(0, 3).map((finding: string, idx: number) => (
+                        <li key={idx} className="text-xs text-gray-300 flex items-start gap-2">
+                          <span className="text-gray-500">•</span> {finding}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
-              )}
+              ))}
             </div>
-          </div>
+          </section>
+        )}
+
+        {/* 4. AI COMMITTEE & SELF-CRITIQUE */}
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full">
+          {/* AI Committee */}
+          {committee && (
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-8 space-y-6">
+              <div className="flex items-center gap-3">
+                <Users className="text-emerald-400" size={24} />
+                <h3 className="text-lg font-bold">AI Investment Committee</h3>
+              </div>
+              <div className="text-sm text-gray-300 leading-relaxed space-y-3">
+                <p><strong>Decision:</strong> {committee.overallDecision || committee.decisionOutcome?.recommendation}</p>
+                <p><strong>Reasoning:</strong> {committee.finalReasoning || "Evaluated by institutional AI committee parameters."}</p>
+              </div>
+            </div>
+          )}
+
+          {/* AI Self-Critique */}
+          {critique && (
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-8 space-y-6">
+              <div className="flex items-center gap-3">
+                <Shield className="text-yellow-400" size={24} />
+                <h3 className="text-lg font-bold">AI Self-Critique & Stress Test</h3>
+              </div>
+              <div className="text-sm text-gray-300 leading-relaxed space-y-3">
+                <p><strong>Stability Index:</strong> {((critique.robustnessSummary?.stabilityIndex || 0) * 100).toFixed(0)}%</p>
+                <p><strong>Key Vulnerability:</strong> {critique.robustnessAnalysis?.mostSensitiveMetric || "None identified"}</p>
+                <p><strong>Rationale:</strong> {critique.robustnessAnalysis?.robustnessRationale}</p>
+              </div>
+            </div>
+          )}
         </section>
 
-        {traceMetrics.length > 0 && <hr className="border-white/10" />}
-
-        {/* 5. EVIDENCE AUDIT TRACKER */}
+        {/* 5. EVIDENCE TRACEABILITY */}
         {allEvidence.length > 0 && (
-          <section className="space-y-8 w-full border-t border-white/10 pt-16">
-            <div className="flex flex-col gap-2">
-              <h2 className="text-3xl font-bold tracking-tight">Evidence Audit & Data Room</h2>
-              <p className="text-[var(--color-maven-gray-400)] text-[15px] max-w-[80ch]">
-                Maven’s AI Committee relies strictly on deterministic data. The exact metrics and sources used to generate this report are fully logged below for transparency and verification.
-              </p>
-            </div>
-            
+          <section className="space-y-8 w-full">
+            <h2 className="text-sm uppercase tracking-[0.2em] text-[var(--color-maven-gray-500)] font-bold flex items-center gap-2">
+              <Database size={18} /> Evidence Lineage & Traceability
+            </h2>
+
             <div className="space-y-12">
-              {allEvidence.map((section, idx) => (
-                <div key={idx} className="space-y-6">
-                  <h3 className="text-sm font-bold uppercase tracking-[0.2em] text-[var(--color-maven-secondary)] flex items-center gap-2">
-                    <Database size={16} /> {section.title}
-                  </h3>
-                  <div className="bg-[#110e0e] border border-white/5 rounded-3xl overflow-hidden shadow-xl">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-white/5 border-b border-white/10 text-[10px] uppercase tracking-widest text-[var(--color-maven-gray-500)]">
-                          <th className="p-4 pl-6 font-bold w-1/3">Metric Name</th>
-                          <th className="p-4 font-bold w-1/3">Value</th>
-                          <th className="p-4 pr-6 font-bold w-1/3 text-right">Data Source</th>
+              {allEvidence.map((sec, idx) => (
+                <div key={idx} className="space-y-4">
+                  <h3 className="text-base font-bold text-gray-300 tracking-wide">{sec.title}</h3>
+                  <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-black/40 border-b border-white/10 text-xs uppercase tracking-wider text-gray-400">
+                        <tr>
+                          <th className="px-6 py-4">Metric</th>
+                          <th className="px-6 py-4">Value</th>
+                          <th className="px-6 py-4">Source Provider</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-white/5">
-                        {section.data.map((metric, i) => (
-                          <tr key={i} className="hover:bg-white/[0.02] transition-colors">
-                            <td className="p-4 pl-6 text-[13px] font-semibold text-[var(--color-maven-gray-300)] whitespace-nowrap">{metric.name}</td>
-                            <td className="p-4 text-[14px] font-bold text-white">{metric.value != null ? metric.value : 'N/A'}</td>
-                            <td className="p-4 pr-6 text-right">
-                              <span className="text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-md bg-white/5 text-[var(--color-maven-gray-400)] border border-white/10">
-                                {metric.source || 'Verified Source'}
-                              </span>
-                            </td>
+                      <tbody className="divide-y divide-white/5 text-gray-300">
+                        {sec.data.map((item: any, i: number) => (
+                          <tr key={i} className="hover:bg-white/5 transition-colors">
+                            <td className="px-6 py-4 font-medium text-white">{item.name}</td>
+                            <td className="px-6 py-4">{item.value}</td>
+                            <td className="px-6 py-4 text-gray-400 text-xs font-mono">{item.source || "Audited Statements"}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -406,4 +315,9 @@ export default function ReportPage({ params }: { params: Promise<{ reportId: str
       </div>
     </div>
   );
+}
+
+export default function ReportPage({ params }: { params: Promise<{ reportId: string }> }) {
+  const resolvedParams = use(params);
+  return <ReportView reportId={resolvedParams?.reportId} />;
 }

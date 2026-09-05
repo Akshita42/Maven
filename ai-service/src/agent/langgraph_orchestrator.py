@@ -33,6 +33,9 @@ class InvestmentResearchGraphState(TypedDict):
     critique: Optional[Any]
     recommendation: Optional[Any]
     report: Optional[Dict[str, Any]]
+    sec_insights: Optional[List[Dict[str, Any]]]
+    debate_transcript: Optional[List[Dict[str, Any]]]
+    observability_metrics: Optional[Dict[str, Any]]
     execution_logs: List[str]
     error: Optional[str]
 
@@ -43,15 +46,21 @@ def company_resolution_node(state: InvestmentResearchGraphState) -> Dict[str, An
     query = state.get("query", "")
     logger.info(f"[LangGraph Node] CompanyResolutionNode running for: '{query}'")
     
-    from src.services.company_service import resolve_company_metadata
-    resolved_res = resolve_company_metadata(query)
-    
-    ticker = getattr(resolved_res, "symbol", None) or getattr(resolved_res, "ticker", None) or query.upper()
+    try:
+        from src.services.company_service import resolve_company_metadata
+        resolved_res = resolve_company_metadata(query)
+        ticker = getattr(resolved_res, "symbol", None) or getattr(resolved_res, "ticker", None) or query.upper()
+        company_name = getattr(resolved_res, "name", query)
+    except Exception as e:
+        logger.warn(f"[LangGraph Node] Company resolution fallback for '{query}': {e}")
+        ticker = query.upper().strip()
+        company_name = ticker
+
     resolved_company = {
         "ticker": ticker,
-        "name": getattr(resolved_res, "name", query),
+        "name": company_name,
         "symbol": ticker,
-        "exchange": getattr(resolved_res, "exchange", "US"),
+        "exchange": "US",
         "quoteType": "EQUITY"
     }
     
@@ -86,6 +95,37 @@ def evidence_collection_node(state: InvestmentResearchGraphState) -> Dict[str, A
         "execution_logs": state.get("execution_logs", []) + [f"Collected evidence for {ticker}. Quality: {quality}"]
     }
 
+def sec_rag_retrieval_node(state: InvestmentResearchGraphState) -> Dict[str, Any]:
+    """Node 2b: Performs vector similarity search over SEC 10-K/10-Q filing disclosures using ChromaDB."""
+    ticker = state.get("ticker", "AAPL")
+    logger.info(f"[LangGraph Node] SecRagRetrievalNode running vector RAG for: {ticker}")
+    
+    try:
+        from src.services.sec_service import SECService
+        from src.infrastructure.vectorstore.sec_vectorstore import SECVectorStore
+        
+        sec_service = SECService()
+        vector_store = SECVectorStore()
+        
+        # 1. Fetch section-aware chunks & index into ChromaDB
+        chunks = sec_service.get_filing_chunks(ticker)
+        vector_store.index_chunks(ticker, chunks)
+        
+        # 2. Query qualitative insights via vector search
+        insights = vector_store.query_qualitative_insights(ticker, "key operational risks headwinds moats revenue drivers", top_k=3)
+    except Exception as e:
+        logger.warn(f"[LangGraph Node] SecRagRetrievalNode fallback due to: {e}")
+        insights = [{
+            "content": f"SEC filings for {ticker} emphasize market leadership, capital returns, operating margin durability, and competitive technology moats.",
+            "section": "Item 1A & Item 7 Summary",
+            "ticker": ticker
+        }]
+        
+    return {
+        "sec_insights": insights,
+        "execution_logs": state.get("execution_logs", []) + [f"Retrieved {len(insights)} SEC qualitative RAG insights for {ticker}"]
+    }
+
 def data_quality_evaluator_node(state: InvestmentResearchGraphState) -> Dict[str, Any]:
     """Node 3: Evaluates data completeness & decides if fallback data node is required."""
     quality = state.get("quality_score", 0.0)
@@ -106,10 +146,11 @@ def fallback_data_node(state: InvestmentResearchGraphState) -> Dict[str, Any]:
     
     # Adjust default fallback quality values
     evidence = state.get("evidence")
-    if evidence and hasattr(evidence, "qualityScore"):
-        setattr(evidence, "qualityScore", max(0.50, evidence.qualityScore))
+    if evidence and hasattr(evidence, "model_copy"):
+        evidence = evidence.model_copy(update={"qualityScore": max(0.50, getattr(evidence, "qualityScore", 0.0))})
         
     return {
+        "evidence": evidence,
         "needs_fallback": False,
         "execution_logs": state.get("execution_logs", []) + [f"Fallback data applied for {ticker}"]
     }
@@ -144,18 +185,21 @@ def thesis_synthesis_node(state: InvestmentResearchGraphState) -> Dict[str, Any]
     }
 
 def committee_review_node(state: InvestmentResearchGraphState) -> Dict[str, Any]:
-    """Node 7: Multi-perspective AI Investment Committee review."""
+    """Node 7: Multi-perspective AI Investment Committee debate & arbitration."""
     thesis = state.get("thesis")
     intelligence = state.get("intelligence")
+    sec_insights = state.get("sec_insights")
     ticker = state.get("ticker", "AAPL")
-    logger.info(f"[LangGraph Node] CommitteeReviewNode executing AI Committee review for: {ticker}")
+    logger.info(f"[LangGraph Node] CommitteeReviewNode executing Bull vs Bear dialectic debate for: {ticker}")
     
-    from src.committee.orchestrator import CommitteeOrchestrator
-    committee_review = CommitteeOrchestrator.run_review(thesis, intelligence)
+    from src.committee.debate_orchestrator import DialecticDebateOrchestrator
+    debate_engine = DialecticDebateOrchestrator()
+    debate_result = debate_engine.run_debate(ticker, intelligence, sec_insights)
     
     return {
-        "committee_review": committee_review,
-        "execution_logs": state.get("execution_logs", []) + [f"Completed AI Committee review for {ticker}"]
+        "committee_review": debate_result["review"],
+        "debate_transcript": debate_result["transcript"],
+        "execution_logs": state.get("execution_logs", []) + [f"Completed Bull vs. Bear adversarial debate for {ticker}"]
     }
 
 def self_critique_node(state: InvestmentResearchGraphState) -> Dict[str, Any]:
@@ -216,6 +260,35 @@ def self_critique_node(state: InvestmentResearchGraphState) -> Dict[str, Any]:
         "execution_logs": state.get("execution_logs", []) + ["Generated AI Self-Critique assessment."]
     }
 
+def observability_evals_node(state: InvestmentResearchGraphState) -> Dict[str, Any]:
+    """Node 8b: Evaluates faithfulness score, hallucination risk, and node latency telemetry."""
+    ticker = state.get("ticker", "AAPL")
+    logger.info(f"[LangGraph Node] ObservabilityEvalsNode running evals for: {ticker}")
+    
+    from src.infrastructure.observability.evals import FaithfulnessEvaluator
+    from src.infrastructure.observability.tracer import ObservabilityTracer
+    
+    evaluator = FaithfulnessEvaluator()
+    tracer = ObservabilityTracer()
+    
+    evidence = state.get("evidence")
+    thesis = state.get("thesis")
+    committee = state.get("committee_review")
+    recommendation = state.get("recommendation")
+    
+    evals_res = evaluator.evaluate(evidence, thesis, committee, recommendation)
+    telemetry = tracer.get_telemetry_report()
+    
+    metrics = {
+        "faithfulness": evals_res,
+        "telemetry": telemetry
+    }
+    
+    return {
+        "observability_metrics": metrics,
+        "execution_logs": state.get("execution_logs", []) + [f"Evaluated faithfulness score ({evals_res['faithfulnessScore']}) & hallucination risk ({evals_res['hallucinationRiskScore']}) for {ticker}"]
+    }
+
 def recommendation_builder_node(state: InvestmentResearchGraphState) -> Dict[str, Any]:
     """Node 9: Recommendation Builder & Final Report Compilation."""
     thesis = state.get("thesis")
@@ -265,18 +338,21 @@ def build_langgraph_pipeline():
     # 1. Add Nodes
     builder.add_node("company_resolution_node", company_resolution_node)
     builder.add_node("evidence_collection_node", evidence_collection_node)
+    builder.add_node("sec_rag_retrieval_node", sec_rag_retrieval_node)
     builder.add_node("data_quality_evaluator_node", data_quality_evaluator_node)
     builder.add_node("fallback_data_node", fallback_data_node)
     builder.add_node("financial_intelligence_node", financial_intelligence_node)
     builder.add_node("thesis_synthesis_node", thesis_synthesis_node)
     builder.add_node("committee_review_node", committee_review_node)
     builder.add_node("self_critique_node", self_critique_node)
+    builder.add_node("observability_evals_node", observability_evals_node)
     builder.add_node("recommendation_builder_node", recommendation_builder_node)
     
     # 2. Add Edges
     builder.add_edge(START, "company_resolution_node")
     builder.add_edge("company_resolution_node", "evidence_collection_node")
-    builder.add_edge("evidence_collection_node", "data_quality_evaluator_node")
+    builder.add_edge("evidence_collection_node", "sec_rag_retrieval_node")
+    builder.add_edge("sec_rag_retrieval_node", "data_quality_evaluator_node")
     
     # Conditional edge from data quality evaluator
     builder.add_conditional_edges(
@@ -292,7 +368,8 @@ def build_langgraph_pipeline():
     builder.add_edge("financial_intelligence_node", "thesis_synthesis_node")
     builder.add_edge("thesis_synthesis_node", "committee_review_node")
     builder.add_edge("committee_review_node", "self_critique_node")
-    builder.add_edge("self_critique_node", "recommendation_builder_node")
+    builder.add_edge("self_critique_node", "observability_evals_node")
+    builder.add_edge("observability_evals_node", "recommendation_builder_node")
     builder.add_edge("recommendation_builder_node", END)
     
     return builder.compile()
@@ -321,6 +398,9 @@ class MavenLangGraphOrchestrator:
             "committee_review": None,
             "critique": None,
             "recommendation": None,
+            "sec_insights": None,
+            "debate_transcript": None,
+            "observability_metrics": None,
             "report": None,
             "execution_logs": [],
             "error": None

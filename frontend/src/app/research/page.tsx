@@ -52,7 +52,7 @@ export default function ResearchWorkspace() {
     // Attempt to load the latest report for this session
     const loadLatestReport = async () => {
       try {
-        const response = await fetch(`http://localhost:8000/api/v1/report/latest?sessionId=${storedSession}`);
+        const response = await fetch(`/api/v1/report/latest?sessionId=${storedSession}`);
         if (response.ok) {
           const data = await response.json();
           if (data && data.data) {

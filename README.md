@@ -1,240 +1,165 @@
-# Maven – AI Investment Research Copilot
-*Submission for Altuni AI Labs – AI Product Development Engineer Assignment*
+# 🚀 Maven – Autonomous Multi-Agent Financial Research Copilot
+*Submission for Razorpay AI Buildathon — Real-Time Agentic Financial Intelligence with SEC Hybrid RAG & Live Evals*
 
 ---
 
-# Overview — What it does
+## 🌟 Overview — What Maven Is
 
-Maven is an AI-powered investment research copilot designed to help users evaluate publicly listed companies through an explainable, evidence-first workflow.
+**Maven** is an autonomous, multi-agent investment research copilot designed to evaluate publicly traded companies through a stateful, explainable, zero-hallucination workflow.
 
-Instead of functioning as a traditional chatbot, Maven follows a structured investment research pipeline inspired by professional equity research practices. It collects real-time financial data, performs deterministic financial analysis, synthesizes the findings into an investment thesis, reviews that thesis through an AI investment committee, critiques its own reasoning, and finally generates both a conversational recommendation and a detailed research report.
+Unlike generic LLM wrappers that guess financial numbers, Maven pairs a **deterministic mathematical scoring engine** with a **LangGraph state machine graph**, an **adversarial Bull vs. Bear debate committee**, **ChromaDB vector RAG over SEC 10-K/10-Q filings**, and **real-time AI observability evals**.
 
-The final recommendation is presented as **INVEST** or **PASS**, supported by transparent reasoning and traceable financial evidence.
-
----
-
-# Key Engineering Decisions & Trade-offs
-
-## 1. Hybrid AI Architecture
-
-The assignment requested React/Next.js, Node.js, and LangChain.js.
-
-For this MVP, I implemented the application using a layered architecture consisting of:
-
-- Next.js frontend
-- Node.js API gateway (built directly into Next.js API Routes)
-- Python FastAPI AI service
-
-The AI orchestration currently resides inside the Python service because Python provides a mature ecosystem for financial data processing and AI workflows.
-
-The architecture intentionally separates the orchestration layer from the frontend, making it straightforward to migrate the workflow to LangChain/LangGraph in a future version without changing the overall system design.
+Every recommendation is delivered as **INVEST** or **PASS**, complete with confidence scores, target price bands, risk factors, and complete trace evidence.
 
 ---
 
-## 2. Deterministic Analysis Before AI Reasoning
+## 🏗️ Architecture & Core System Design
 
-Financial calculations should be reproducible.
-
-Instead of asking an LLM to calculate financial metrics, Maven computes all financial ratios and derived metrics deterministically from structured financial data.
-
-The language model receives only validated outputs and focuses exclusively on:
-
-- interpretation
-- reasoning
-- synthesis
-- explanation
-
-This significantly reduces hallucinations while improving consistency.
-
----
-
-## 3. Explainability Through Evidence
-
-Trust is essential for AI-assisted financial decision making.
-
-Every recommendation is backed by supporting financial evidence.
-
-The report includes an Evidence section that allows users to trace important financial metrics back to their originating data source, making the recommendation transparent rather than a black-box AI opinion.
-
----
-
-# How it Works — Architecture
-
-Maven uses a modular microservice architecture.
+Maven uses a modular microservices architecture separating the high-performance Next.js 14 App Router frontend from the stateful Python FastAPI AI service.
 
 ```text
-Next.js Frontend
-        │
-        ▼
-Node.js API Gateway (Next.js API Routes)
-        │
-        ▼
-Python AI Service
-        │
-        ▼
-Evidence Collection
-        │
-        ▼
-Financial Intelligence
-        │
-        ▼
-Investment Thesis
-        │
-        ▼
-AI Investment Committee
-        │
-        ▼
-AI Self-Critique
-        │
-        ▼
-Recommendation Builder
-        │
-        ▼
-Professional Research Report
+       ┌────────────────────────────────────────────────────────┐
+       │                   Next.js 14 Frontend                  │
+       │     (Dark Glassmorphism, SSE Streaming, Evals UI)      │
+       └───────────────────────────┬────────────────────────────┘
+                                   │ Real-time SSE / REST
+                                   ▼
+       ┌────────────────────────────────────────────────────────┐
+       │                 FastAPI AI Engine Backend              │
+       └───────────────────────────┬────────────────────────────┘
+                                   │
+             ┌─────────────────────┼─────────────────────┐
+             ▼                     ▼                     ▼
+┌─────────────────────────┐ ┌───────────────────┐ ┌──────────────────────┐
+│  LangGraph Orchestrator │ │ Deterministic Math│ │ SEC 10-K Chroma Vector│
+│  State Machine Graph    │ │ Engine (0 Halluc.)│ │ Hybrid RAG Pipeline  │
+└────────────┬────────────┘ └─────────┬─────────┘ └──────────┬───────────┘
+             │                        │                      │
+             └───────────────────┬────┴──────────────────────┘
+                                 ▼
+                    ┌─────────────────────────┐
+                    │ Bull vs. Bear Committee │
+                    │   Adversarial Debate    │
+                    └────────────┬────────────┘
+                                 ▼
+                    ┌─────────────────────────┐
+                    │ AI Observability & Evals│
+                    │ (Faithfulness, Precision│
+                    └─────────────────────────┘
 ```
 
-The major stages are:
+---
 
-### 1. Company Resolution
+## ⚡ Core Features & Capabilities
 
-Maps the company name supplied by the user to the corresponding market ticker.
+### 1. 🔄 Stateful LangGraph Multi-Agent Orchestration
+Powered by `langgraph`, Maven runs a multi-agent graph state machine featuring specialized nodes:
+- **Fundamental & Valuation Specialist**
+- **Growth & Capital Allocation Analyst**
+- **Financial Health & Solvency Inspector**
+- **Technical & Price Momentum Analyst**
+- **SEC Filing Risk Factor Specialist**
 
-### 2. Evidence Collection
+### 2. 📚 Hybrid SEC 10-K / 10-Q Vector RAG Engine
+Integrates `ChromaDB` and SEC Edgar data pipelines to extract, chunk, and embed official 10-K and 10-Q risk disclosures and MD&A sections. Eliminates black-box hallucination by anchoring qualitative claims in official regulatory filings.
 
-Retrieves structured financial and market data from public financial data providers.
+### 3. ⚔️ Bull vs. Bear Adversarial Debate Engine
+Before finalizing any rating, an adversarial committee node spawns opposing Bull and Bear agents:
+- **Bull Agent**: Formulates upside catalysts, revenue expansion paths, and valuation margin-of-safety.
+- **Bear Agent**: Cross-examines debt obligations, margin contraction, competitive pressures, and regulatory red flags.
+- **Moderator Node**: Synthesizes cross-examinations into a battle-tested investment verdict.
 
-### 3. Financial Intelligence
+### 4. 📐 Zero-Hallucination Mathematical Determinism
+Financial metrics (P/E, EV/EBITDA, Debt-to-Equity, FCF Yield, Piotroski F-Score) are calculated programmatically in Python (`math_engine.py`) using raw balance sheet and income statement data before being passed to LLM reasoning nodes.
 
-Deterministic analyzers evaluate the company across multiple dimensions, including:
-
-- Business Quality
-- Financial Health
-- Growth
-- Valuation
-- Risk
-- Management
-
-### 4. Investment Thesis
-
-The AI synthesizes the deterministic findings into an evidence-based investment thesis.
-
-### 5. AI Investment Committee
-
-An AI committee evaluates the thesis, weighs supporting and opposing evidence, and produces a committee decision.
-
-### 6. AI Self-Critique
-
-The recommendation is challenged before publication by identifying assumptions, missing evidence, and reasoning weaknesses.
-
-### 7. Recommendation Builder
-
-Combines deterministic confidence with AI reasoning to generate the final **INVEST** or **PASS** recommendation.
-
-### 8. Report Generation
-
-Transforms the recommendation into a professional research report with evidence traceability and supporting analysis.
+### 5. 🔍 Live AI Observability & Runtime Evals
+Includes an internal tracing engine (`tracer.py`) and evaluation pipeline (`evals.py`) scoring every single research run on:
+- **Faithfulness Score**: Measures alignment between context and final claims.
+- **Answer Relevance**: Ensures prompt intent is strictly met.
+- **Context Precision**: Evaluates quality of retrieved SEC vectors.
+*(Accessible directly in the frontend via **Developer Mode**)*
 
 ---
 
-# How to Run
+## 🛠️ Quick Start & Local Setup
 
-## Prerequisites
-
-- Node.js 18+
-- Python 3.10+
-- Google Gemini API Key
+### Prerequisites
+- **Node.js**: v18+
+- **Python**: v3.10+
+- **Gemini API Key**: Set `GEMINI_API_KEY` in `.env`
 
 ---
 
-## 1. Clone Repository
+### 1. Clone Repository & Setup Environment
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/Akshita42/Maven.git
 cd Maven
 ```
 
 ---
 
-## 2. Start the AI Service
+### 2. Start Python FastAPI AI Backend
 
 ```bash
 cd ai-service
 
+# Create virtual environment
 python -m venv .venv
-```
 
-Windows
-
-```bash
+# Activate virtual environment
+# Windows:
 .venv\Scripts\activate
-```
-
-Linux / macOS
-
-```bash
+# Linux/macOS:
 source .venv/bin/activate
-```
 
-Install dependencies
-
-```bash
+# Install dependencies
 pip install -r requirements.txt
-```
 
-Create a `.env` file in the `ai-service` directory:
-```env
-ENV=development
-HOST=127.0.0.1
-PORT=8000
-GEMINI_API_KEY=your_api_key_here
-GEMINI_MODEL=gemini-2.5-flash
-```
+# Create .env file
+echo ENV=development > .env
+echo HOST=127.0.0.1 >> .env
+echo PORT=8000 >> .env
+echo GEMINI_API_KEY=your_gemini_api_key_here >> .env
+echo GEMINI_MODEL=gemini-2.5-flash >> .env
 
-Run
-
-```bash
-python -m uvicorn src.main:app
+# Run FastAPI Server
+python -m uvicorn src.main:app --host 127.0.0.1 --port 8000
 ```
 
 ---
 
-## 3. Start the Frontend & API Gateway
+### 3. Start Next.js Frontend
+
+Open a new terminal window:
 
 ```bash
-cd frontend
+cd Maven/frontend
 
+# Install dependencies
 npm install
 
+# Start development server
 npm run dev
 ```
 
+Visit `http://localhost:3000` in your browser.
+
 ---
 
-## Future Improvements
+## 🧪 Verification & Testing
 
-This MVP focuses on building an explainable investment research pipeline.
+To run the automated system test suite for the LangGraph workflow and evaluation engine:
 
-Future work includes:
+```bash
+cd ai-service
+.venv\Scripts\python.exe test_langgraph.py
+```
 
-- LangChain/LangGraph orchestration
-- Retrieval-Augmented Generation (RAG)
-- Vector databases for semantic retrieval
-- SEC filing and annual report retrieval
-- Earnings call transcript analysis
-- Multi-agent specialist reviewers
-- Historical report memory
-- Portfolio analysis
-- Company comparison
-- Continuous investment monitoring
-- PDF export
-- Research collaboration
-- Multi-LLM support
-- Real-time market alerts
+---
 
-The current architecture was intentionally designed so these capabilities can be incorporated with minimal changes to the overall system. 
+## 🏆 Submission Details
 
-## Note
-
-This project was developed as a time-constrained MVP to demonstrate an explainable AI investment research workflow.
-
-The focus was on building a transparent, modular, and extensible architecture rather than maximizing feature count. Several advanced capabilities—including LangChain/LangGraph orchestration, Retrieval-Augmented Generation (RAG), semantic search, and portfolio intelligence—have been intentionally identified as future enhancements.
+- **Event**: [Razorpay AI Buildathon](https://razorpay.com/buildathon/)
+- **Repository**: [https://github.com/Akshita42/Maven](https://github.com/Akshita42/Maven)
+- **Tech Stack**: Next.js 14, Tailwind CSS, TypeScript, FastAPI, Python 3.10, LangGraph, ChromaDB, Google Gemini 2.5 Flash, Uvicorn.
