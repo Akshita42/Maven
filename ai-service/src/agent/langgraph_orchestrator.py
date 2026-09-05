@@ -230,17 +230,23 @@ def recommendation_builder_node(state: InvestmentResearchGraphState) -> Dict[str
     
     from src.recommendation.builder import RecommendationBuilder
     from src.report.builder import ReportBuilder
+    from src.report.service import ReportService
     
     recommendation = RecommendationBuilder.build(thesis, committee, critique)
     report = ReportBuilder.build(evidence, intelligence, thesis, committee, critique, recommendation)
     report_dict = report.model_dump()
-
     
+    try:
+        ReportService.save(report_dict, "default_session")
+    except Exception as e:
+        logger.error(f"[LangGraph Node] Failed to persist report: {e}")
+        
     return {
         "recommendation": recommendation,
         "report": report_dict,
         "execution_logs": state.get("execution_logs", []) + [f"Finalized decision package & report for {ticker}"]
     }
+
 
 # ── Router Logic ─────────────────────────────────────────────────────────────
 

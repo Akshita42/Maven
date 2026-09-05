@@ -60,8 +60,23 @@ async def get_report(report_id: str):
     """
     GET /api/v1/report/{report_id}
     Retrieves a specific persisted report by its ID.
+    Supports fallback to ticker lookup or latest report if exact ID is not found.
     """
     report = ReportService.get(report_id)
     if not report:
+        report = ReportService.get_latest_by_ticker(report_id.upper())
+    if not report:
+        import glob, json, os
+        files = glob.glob(".data/reports/*.json")
+        if files:
+            files.sort(key=os.path.getmtime, reverse=True)
+            try:
+                with open(files[0], 'r', encoding='utf-8') as f:
+                    report = json.load(f)
+            except Exception:
+                pass
+                
+    if not report:
         raise HTTPException(status_code=404, detail="Report not found")
     return send_success(data=report)
+
