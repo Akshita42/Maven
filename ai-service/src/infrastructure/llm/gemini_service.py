@@ -27,7 +27,11 @@ class GeminiService(BaseLLMService):
         if not self.api_key:
             raise TerminalAgentError("GEMINI_API_KEY environment variable is missing.")
             
-        self.model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+        self.model_name = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
+
+
+
+
         
         try:
             temp_str = os.environ.get("GEMINI_TEMPERATURE", "0.1")
